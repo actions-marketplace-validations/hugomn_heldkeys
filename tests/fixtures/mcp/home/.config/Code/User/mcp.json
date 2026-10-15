@@ -1,0 +1,10 @@
+{
+  "inputs": [],
+  "servers": {
+    "pypi": {
+      "command": "uvx",
+      "args": ["pypi-mcp"],
+      "env": { "PYPI_TOKEN": "pypi-FAKEFAKEFAKEFAKEFAKE0308" }
+    }
+  }
+}

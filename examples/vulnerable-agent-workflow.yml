@@ -1,0 +1,52 @@
+# VULNERABLE BY DESIGN. Do not copy this workflow into a repository.
+#
+# It is the kind of "AI assistant" workflow that gets written in an afternoon:
+# anyone can summon the agent from a comment, it works on the pull request's
+# own files, and it holds a token that can push plus a cloud key. Each comment
+# below names the heldkeys rule the line trips. Try it:
+#
+#   mkdir -p /tmp/demo/.github/workflows
+#   cp examples/vulnerable-agent-workflow.yml /tmp/demo/.github/workflows/
+#   heldkeys ci --path /tmp/demo
+#
+# examples/hardened-agent-workflow.yml is the same idea done safely.
+name: ai-assistant
+
+on:
+  # HK-WF-001: anyone who can comment on an issue or pull request starts the
+  # agent, and the comment is text an attacker wrote.
+  issue_comment:
+    types: [created]
+
+# HK-WF-003: every scope the token has. Combined with the trigger above, a
+# prompt injection in a comment can push code.
+permissions: write-all
+
+jobs:
+  assist:
+    runs-on: ubuntu-latest
+    steps:
+      # HK-WF-002: checks out the pull request's head, so the agent then loads
+      # .mcp.json, CLAUDE.md, AGENTS.md and .claude/ from the fork. The fork
+      # decides which MCP servers start and what the agent is told to do.
+      # (This step is also tag-pinned and leaves its token in .git/config;
+      # heldkeys leaves those to zizmor, since checkout is not an agent.)
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ github.event.issue.number }}/head
+
+      # HK-WF-005: a tag, which whoever controls the action's repository can
+      # move to other code.
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Switches off the action's own check that the commenter has write
+          # access to the repository.
+          allowed_non_write_users: "*"
+          # HK-WF-006: any shell command, without asking, with a write token.
+          claude_args: --allowedTools "Bash(*)"
+        env:
+          # HK-WF-004: long-lived cloud keys the agent does not need. One `env`
+          # in a tool call and they end up in a public comment.
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

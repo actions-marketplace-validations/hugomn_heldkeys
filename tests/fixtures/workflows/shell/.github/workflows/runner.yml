@@ -1,0 +1,16 @@
+# HK-WF-006: "npm run docs" runs whatever package.json says, so it is a shell.
+on:
+  schedule:
+    - cron: '0 3 * * *'
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@0123456789abcdef0123456789abcdef01234567
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: Update docs/ to match the code. Never use --dangerously-skip-permissions.
+          claude_args: --allowedTools "Bash(npm run docs:*),Edit,Write"

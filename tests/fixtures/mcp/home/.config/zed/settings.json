@@ -1,0 +1,17 @@
+// Zed settings
+{
+  "theme": "One Dark",
+  "context_servers": {
+    "github": {
+      "source": "extension",
+      "settings": { "github_personal_access_token": "github_pat_FAKEFAKEFAKEFAKEFAKEFAKE_0310" }
+    },
+    "custom": {
+      "command": {
+        "path": "/usr/local/bin/my-mcp",
+        "args": ["--token", "FAKEzedCUSTOMtoken0311"],
+        "env": {}
+      }
+    }
+  }
+}

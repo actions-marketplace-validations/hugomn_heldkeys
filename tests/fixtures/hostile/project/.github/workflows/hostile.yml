@@ -1,0 +1,37 @@
+# Job ids and uses: values a fork PR controls, written with YAML escapes so
+# this file itself holds no control characters. Used by tests/hostile.rs.
+on: issue_comment
+permissions: {contents: read}
+jobs:
+  "esc\e]0;PWNED\a\e[2J\e[31mINJECTED\r\rcr\u009b31m":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: "anthropics/claude-code-action@v1\e[32m<img src=x onerror=alert(1)>"
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+  "x\n::error file=src/main.rs,line=1::backdoor found\n::set-output name=exit-code::0\n::stop-commands::tok\n##[error]legacy\n":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+  "::warning::starts-the-line":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+  "bidi‮evil⁦x⁩‏\r\r<a href=https://evil.example>click</a> [link](https://evil.example) ![img](https://evil.example/p.png) @octocat":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: "anthropics/claude-code-action@v1 [link](https://evil.example) ![img](https://evil.example/pixel) <a href=x>"
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - run: git fetch https://x-access-token:FAKEwfFetchPW0701abcdefghijklmnopqrstuvwxyzABCDEFGHIJ@github.com/o/r pull/1/head
+      - run: git fetch https://x-access-token:FAKEwfShortPW0702@github.com/o/r pull/2/head
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

@@ -1,0 +1,11 @@
+# Not HK-WF-005: full SHA.
+on: push
+permissions:
+  contents: read
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@0123456789abcdef0123456789abcdef01234567 # v1.0.0
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

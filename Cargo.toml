@@ -1,0 +1,46 @@
+[package]
+name = "heldkeys"
+version = "0.1.1"
+edition = "2024"
+# std::env::home_dir un-deprecated (1.86) and let-chains (1.88).
+rust-version = "1.88"
+description = "Which credentials could a hijacked AI agent use from here? Read-only, never prints a secret."
+license = "MIT"
+authors = ["Hugo Nogueira"]
+repository = "https://github.com/hugomn/heldkeys"
+homepage = "https://github.com/hugomn/heldkeys"
+documentation = "https://github.com/hugomn/heldkeys#readme"
+readme = "README.md"
+keywords = ["security", "credentials", "ai-agents", "ci", "secrets"]
+categories = ["command-line-utilities", "development-tools"]
+# Ship the source, not the fixtures: the fake tokens in tests/fixtures trip
+# secret scanners downstream and are not needed to build.
+include = ["/src/**/*.rs", "/Cargo.toml", "/Cargo.lock", "/README.md", "/LICENSE", "/NOTICE", "/CHANGELOG.md"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+owo-colors = "4"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+yaml-rust2 = { version = "0.13", default-features = false }
+
+# O_NONBLOCK for opening files, so a FIFO planted where a config file should be
+# cannot block the scan (see fsutil.rs).
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
+
+[profile.release]
+# A small, single binary: the tool is meant to be dropped into sandboxes and CI.
+lto = true
+codegen-units = 1
+strip = true
+
+# The profile cargo-dist builds release archives with (see dist-workspace.toml).
+[profile.dist]
+inherits = "release"

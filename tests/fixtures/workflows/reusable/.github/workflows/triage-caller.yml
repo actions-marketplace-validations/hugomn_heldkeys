@@ -1,0 +1,14 @@
+# HK-WF-001 (Medium) through a call that passes one secret explicitly and a
+# read-only token: the callee's AWS key and its missing permissions block
+# do not matter, because the caller passes neither.
+on:
+  issues:
+    types: [opened]
+jobs:
+  triage:
+    uses: ./.github/workflows/triage-agent.yml
+    permissions:
+      contents: read
+      issues: read
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

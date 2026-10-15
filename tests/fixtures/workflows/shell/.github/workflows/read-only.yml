@@ -1,0 +1,11 @@
+# Not HK-WF-006: full-auto, but the token is read-only.
+on: push
+permissions:
+  contents: read
+jobs:
+  codex:
+    runs-on: ubuntu-latest
+    steps:
+      - run: npx -y @openai/codex exec --full-auto "Explain the build"
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

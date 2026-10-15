@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "local": {
+      "command": "python",
+      "args": ["-m", "server", "--api-key=$MY_API_KEY", "--password", "changeme"],
+      "env": { "OPENAI_API_KEY": "<your-key-here>", "LOG_LEVEL": "debug" }
+    }
+  }
+}

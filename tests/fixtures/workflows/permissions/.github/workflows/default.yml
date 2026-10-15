@@ -1,0 +1,11 @@
+# HK-WF-003 (Medium): no permissions block anywhere.
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+jobs:
+  gemini:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: google-github-actions/run-gemini-cli@0123456789abcdef0123456789abcdef01234567
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}

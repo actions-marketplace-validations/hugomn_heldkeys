@@ -1,0 +1,13 @@
+model = "o3"
+
+[mcp_servers.huggingface]
+command = "npx"
+args = ["-y", "hf-mcp"]
+env = { HF_TOKEN = "hf_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0312" }
+
+[mcp_servers.internal]
+url = "https://mcp.internal.example/mcp"
+bearer_token = "FAKEcodexBEARER0313"
+
+[mcp_servers.internal.http_headers]
+"X-Api-Key" = "FAKEcodexHEADERkey0314"

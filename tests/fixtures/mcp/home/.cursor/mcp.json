@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "slack": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-slack"],
+      "env": {
+        "SLACK_BOT_TOKEN": "xoxb-0000000000-FAKEFAKEFAKE0305",
+        "SLACK_TEAM_ID": "T00000000"
+      }
+    },
+    "remote": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.example.com/sse", "--header", "Authorization: Bearer gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000306"]
+    }
+  }
+}

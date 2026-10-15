@@ -1,0 +1,58 @@
+# Threat model
+
+heldkeys answers one question: if an AI agent running here were hijacked by a prompt injection, which credentials could it use? It is an inventory. It does not block anything; it tells you what to remove so that a hijacked agent holds less.
+
+To answer that question it has to read the same places the agent reads, and many of those are controlled by someone else: the workflows in a pull request, the `.env` and `.mcp.json` files in a repository you just cloned, the JSON a container sends back. This page says what heldkeys assumes about that content, what it defends against, what it does not, and which of its promises are checked by tests.
+
+## What heldkeys treats as untrusted
+
+Everything it scans. In particular:
+
+- **A hostile repository.** Workflow files in a pull request, project files (`.env*`, `.mcp.json`, `.cursor/mcp.json`, `.npmrc`, `.git/config`) and tracked files read with `ci --repo-secrets`.
+- **A hostile container or pod**, with `scan --docker` and `scan --kube`: its `uname` output, its error messages and the JSON report it sends back.
+- **Names and other text inside configs**: section names, registry keys, kubeconfig user names, credential helper commands, workflow job ids and `uses:` values. These end up in the report, so they are where an attacker would put a terminal escape sequence, a fake GitHub Actions workflow command or a secret meant to be echoed.
+
+## What it defends against
+
+**Leaking a secret through its own output.** Values are shown only as fingerprints (at most the first 4 and last 3 characters) and only for token formats whose prefix is public, when at least 12 characters of the token stay hidden. Before any format is rendered, every finding is scrubbed: secrets that a check quoted in a location or a detail are masked, namely URL passwords (also with percent-encoded separators such as `user%3Apw@host`), `Authorization` header and `Bearer` values, URL query and fragment parameters named like secrets (`?api_key=`, `#access_token=`, an OAuth `?code=`), the values of `--password`, `--token`, `--api-key` and `--secret` style flags, and known tokens, and a fingerprint that is not in the `abcd…xyz` shape is dropped.
+
+**Output that does something when it is displayed.** Every string field of every finding, and every string read back from a container or pod, is made inert: control characters (including escape sequences, carriage returns and line breaks), bidi controls and Unicode line separators become `?`, text that would start a GitHub Actions workflow command (`::`, `##[`) is defused, and the Markdown renderer escapes links, images and HTML tags, and writes URLs and @mentions as code spans, so the only links in a Markdown report are its own rule pages. A hostile job id cannot rewrite your terminal, hide part of a line, fail a CI step or ping someone in a job summary.
+
+**Being steered into reading other files.** Project files are read through a confined reader: a symlink in the project that leads outside it is not followed, and is reported as [HK-READ-001](rules/HK-READ-001.md) (or [HK-WF-007](rules/HK-WF-007.md) for a workflow). Every read opens the file first and checks the open handle, so only regular files are read, a FIFO cannot block the scan, and nothing under `/proc` or `/sys` is read (a symlink to `/proc/self/environ` would otherwise report heldkeys' own environment). A `.git` file's `gitdir:` that leads outside the working directory is followed only when git's own back-pointer there names this working directory (a linked worktree or a submodule), which a cloned repository cannot forge; anything else is reported as not read. Files are capped at 1 MiB (32 MiB for `~/.claude.json`).
+
+**Exhausting memory or time.** YAML is parsed with a budget (100 aliases, 50,000 nodes or 8 MiB of text after alias expansion, 64 levels of nesting), so an alias bomb is refused before it is expanded. The `.env` walk stops after 20,000 directory entries. Local reusable workflows are followed at most 3 calls deep, cycles are detected, each called workflow is analysed once per caller context, and no more than 2,000 called jobs are analysed in all. Every `docker` and `kubectl` command is killed after 120 seconds, and what it prints is capped (16 MiB of stdout, 64 KiB of stderr).
+
+**Running code from what it scans.** heldkeys never runs a program named in a config file: credential helpers, `credential_process` commands and kubeconfig exec plugins are reported, not run. `git ls-files` (only with `ci --repo-secrets`) runs with a cleared environment, `core.hooksPath=/dev/null`, `core.fsmonitor=false`, `protocol.allow=never` and `GIT_OPTIONAL_LOCKS=0`, so a repository's own git config cannot make it run a hook, start a filesystem monitor or fetch anything. Commands for `--docker` and `--kube` are built from explicit arguments, never a shell string, and container and pod names are validated before anything runs.
+
+**Hiding from the scan.** A file heldkeys found but could not read or parse is reported (HK-READ-001, HK-WF-007) instead of being skipped silently, so a malformed workflow cannot turn into a clean pass. `--strict` makes any of these findings fail the run in `scan`, `preflight` and `ci`, for gates that must fail closed.
+
+## What it does not defend against, or cannot see
+
+- **It is not a secret scanner for git history.** `ci --repo-secrets` looks at the files tracked on the current branch. A token committed and later removed is invisible to it. Use [gitleaks](https://github.com/gitleaks/gitleaks), [betterleaks](https://github.com/betterleaks/betterleaks) or [TruffleHog](https://github.com/trufflesecurity/trufflehog) for history.
+- **It cannot see inside OS keychains, browser sessions or unlocked password managers.** It reports that a git credential helper or the GitHub CLI keeps a token in the keychain ([HK-GIT-004](rules/HK-GIT-004.md), [HK-GIT-006](rules/HK-GIT-006.md)), because an agent running as you can usually ask for it, but it does not read the token. Browser cookies, IDE tokens, a password manager CLI with an open session and a cloud console in another tab are not covered at all.
+- **It does not know what a token can do.** It never calls a credential's issuer, so for most tokens the access level is "unknown" unless the format itself says more.
+- **It trusts `PATH`.** `ssh-add`, `git`, `docker` and `kubectl` are found through `PATH`. `ssh-add` gets the `PATH` of the environment being scanned; `docker` and `kubectl` inherit heldkeys' own environment. An attacker who controls `PATH`, or a directory early in it, can replace any of them with their own program, and heldkeys will run it. If you do not trust `PATH` in the place you scan, set it to trusted directories for the heldkeys command.
+- **Home-level configs may be symlinks anywhere.** Dotfile managers keep the real files elsewhere, so `~/.aws/credentials` and friends are followed wherever they point (except `/proc` and `/sys`). Someone who controls your home directory can make heldkeys read another file you can read. It still only reports a classification and a fingerprint, never the content.
+- **It cannot protect against an attacker who already runs as you.** Such an attacker can replace the heldkeys binary, edit its output, or change the files right after the scan. A report is a snapshot of one moment, taken by a binary you have to trust.
+- **The metadata probe is visible on the network.** Unless `HELDKEYS_NO_NET=1` is set, heldkeys opens a TCP connection to `169.254.169.254:80` and closes it without sending anything. Anyone watching the network sees that connection attempt.
+- **A fingerprint is a few characters of the token.** For known formats it shows up to 7 characters, which is meant to let you recognise the token, not to be secret. Formats of unknown shape get no fingerprint.
+
+## Guarantees backed by tests
+
+| Guarantee | Where it is tested |
+|---|---|
+| No fixture secret, or any 10-character slice of one, reaches stdout, stderr or an `--output` file, in any format, for `scan`, `preflight` and `ci` | `tests/redaction.rs` |
+| Secrets pasted into names (section names, registry keys, user names, helper commands, bare `.env` lines, remote URLs) never reach any output | `tests/redaction_sources.rs`, `tests/redaction.rs` |
+| Every fingerprint has the `abcd…xyz` shape, and every text field of a finding is scrubbed and sanitised | `tests/redaction.rs`, unit tests in `src/report/mod.rs` and `src/redact.rs` |
+| Hostile text (terminal escapes, carriage returns, bidi controls, workflow commands, Markdown and HTML) reaches every format as inert text, end to end and in each renderer | `tests/hostile.rs`, unit tests in `src/sanitize.rs` |
+| Symlinks out of the tree, FIFOs, oversized files and `/proc` are refused | unit tests in `src/fsutil.rs`, `src/checks/dotenv.rs`, `src/checks/workflows/mod.rs`, `src/checks/repo_secrets.rs`, `src/checks/ci_runtime.rs`; `tests/redaction_sources.rs` for the FIFO end to end |
+| YAML alias bombs and deep nesting are refused before expansion | unit tests in `src/yaml.rs` |
+| `--strict` fails closed on every credential file a check could not read and on workflows that could not be analysed | `tests/strict_paths.rs`, `tests/redaction_sources.rs`, `tests/ci.rs` |
+| `docker` and `kubectl` output is capped, time-limited and sanitised; container and pod names are validated before anything runs | unit tests in `src/sandbox/remote.rs`, `tests/sandbox.rs` |
+| No network access in tests, and none at all with `HELDKEYS_NO_NET=1` | unit test in `src/context.rs`; the integration tests run with `HELDKEYS_NO_NET=1` |
+
+The last row is enforced mostly by construction rather than by a test: heldkeys has no HTTP client and no DNS resolution among its dependencies, and the only network code is the metadata probe in `src/checks/cloud_metadata.rs`.
+
+## Reporting a problem
+
+If you find a way around any of this, please report it privately as described in [SECURITY.md](../SECURITY.md).

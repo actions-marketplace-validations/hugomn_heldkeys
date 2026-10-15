@@ -1,0 +1,10 @@
+# HK-WF-003 (High): write-all.
+on: push
+permissions: write-all
+jobs:
+  codex:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: openai/codex-action@0123456789abcdef0123456789abcdef01234567
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}

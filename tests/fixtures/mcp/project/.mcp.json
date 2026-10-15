@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "db": {
+      "command": "uvx",
+      "args": ["mcp-server-db"],
+      "env": { "DATABASE_URL": "postgres://admin:FAKEprojectDBpass0316@localhost/app" }
+    },
+    "docs": {
+      "command": "npx",
+      "args": ["-y", "docs-mcp"]
+    }
+  }
+}

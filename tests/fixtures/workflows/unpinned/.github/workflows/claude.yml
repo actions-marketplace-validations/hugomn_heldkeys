@@ -1,0 +1,11 @@
+# HK-WF-005: tag.
+on: push
+permissions:
+  contents: read
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

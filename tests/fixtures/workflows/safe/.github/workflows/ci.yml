@@ -1,0 +1,11 @@
+# Not an agent workflow: broad, but out of scope for the HK-WF rules (zizmor's job).
+on: pull_request_target
+permissions: write-all
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make test
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -1,0 +1,12 @@
+# HK-WF-002: a run step fetches the PR head with a token in the URL. The
+# finding must name the command, never quote the line (FAKE token).
+on: pull_request_target
+permissions: {contents: read}
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - run: git fetch https://x-access-token:ghp_FAKEwfFETCHFAKEFAKEFAKEFAKE000951@github.com/o/r pull/1/head && git checkout FETCH_HEAD
+      - uses: anthropics/claude-code-action@0123456789abcdef0123456789abcdef01234567
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

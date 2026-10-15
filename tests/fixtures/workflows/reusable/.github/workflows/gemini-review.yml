@@ -1,0 +1,29 @@
+# Only ever called: on its own it looks harmless (workflow_call is not an
+# untrusted trigger), so the risks are reported through the dispatcher.
+name: Gemini Review
+on:
+  workflow_call:
+    inputs:
+      additional_context:
+        type: string
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - id: gemini
+        uses: google-github-actions/run-gemini-cli@v0
+        env:
+          GITHUB_TOKEN: ${{ steps.mint_identity_token.outputs.token || secrets.GITHUB_TOKEN || github.token }}
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          settings: |-
+            {
+              "tools": {"core": ["run_shell_command(cat)", "run_shell_command(echo)", "run_shell_command(grep)"]}
+            }
+          prompt: review the PR

@@ -1,0 +1,123 @@
+# Fan-out: 30 jobs, each calling c.yml. Read naively, d.yml is reached 30^3 times.
+on: workflow_call
+jobs:
+  j0:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j1:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j2:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j3:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j4:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j5:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j6:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j7:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j8:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j9:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j10:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j11:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j12:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j13:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j14:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j15:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j16:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j17:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j18:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j19:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j20:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j21:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j22:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j23:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j24:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j25:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j26:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j27:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j28:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all
+  j29:
+    uses: ./.github/workflows/c.yml
+    secrets: inherit
+    permissions: write-all

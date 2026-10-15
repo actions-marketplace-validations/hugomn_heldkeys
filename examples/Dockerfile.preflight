@@ -1,0 +1,30 @@
+# heldkeys preflight as an entrypoint gate: the container refuses to start the
+# agent if it can reach a long-lived credential with write access.
+#
+# Put a static Linux heldkeys next to this file as ./heldkeys, either from a
+# release (from v0.1.1) or built yourself (see docs/building.md):
+#
+#   cargo build --release --target x86_64-unknown-linux-musl
+#   cp target/x86_64-unknown-linux-musl/release/heldkeys examples/
+#   docker build -f examples/Dockerfile.preflight -t my-agent examples
+#
+# Replace the base image and the agent command with your own.
+FROM node:22-slim
+
+# One static file, no runtime. A read-only root filesystem is fine.
+COPY --chmod=0755 heldkeys /usr/local/bin/heldkeys
+
+# Run as the user the agent runs as: that user's credentials are the question.
+RUN useradd --create-home agent
+USER agent
+WORKDIR /home/agent/work
+
+# preflight runs the same local checks as `heldkeys scan` and prints one line
+# starting with PASS or FAIL. It exits 1 on FAIL, so with `&&` the agent never
+# starts. The default threshold is high; long-lived-write fails only on
+# credentials that keep working after the session and can change things.
+#
+# With --format json the full report goes to stdout and the verdict line to
+# stderr, for platforms that collect the report.
+ENTRYPOINT ["/bin/sh", "-c", "heldkeys preflight --fail-on long-lived-write && exec \"$@\"", "heldkeys-gate"]
+CMD ["npx", "-y", "@anthropic-ai/claude-code", "--help"]

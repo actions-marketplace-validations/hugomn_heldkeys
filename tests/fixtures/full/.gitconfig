@@ -1,0 +1,7 @@
+[user]
+	name = Fake User
+	email = fake@example.com
+[credential]
+	helper = osxkeychain
+[credential "https://git.example.com"]
+	helper = store

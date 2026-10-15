@@ -1,0 +1,4 @@
+[credential "https://user:pa/ssFAKEcred0907@host.example.com"]
+	helper = store
+[url "https://user:pa/ssFAKEurl0908@github.com/"]
+	insteadOf = https://github.com/

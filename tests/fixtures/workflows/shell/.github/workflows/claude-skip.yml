@@ -1,0 +1,12 @@
+# HK-WF-006: no permission prompts at all, plus a token that can push.
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  claude:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@0123456789abcdef0123456789abcdef01234567
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: --dangerously-skip-permissions --allowedTools Bash,Read

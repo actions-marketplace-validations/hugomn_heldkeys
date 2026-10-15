@@ -1,0 +1,26 @@
+{
+  "numStartups": 12,
+  "mcpServers": {
+    "linear": {
+      "type": "http",
+      "url": "https://mcp.linear.example/mcp",
+      "headers": {
+        "Authorization": "Bearer FAKElinearBEARERtoken0303"
+      }
+    }
+  },
+  "projects": {
+    "/work/shop": {
+      "allowedTools": [],
+      "mcpServers": {
+        "stripe": {
+          "command": "npx",
+          "args": ["-y", "@stripe/mcp", "--tools=all", "--api-key=FAKEstripeKEYvalue0304"]
+        }
+      }
+    },
+    "/work/empty": {
+      "mcpServers": {}
+    }
+  }
+}

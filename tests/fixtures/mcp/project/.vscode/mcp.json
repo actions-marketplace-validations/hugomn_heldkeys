@@ -1,0 +1,12 @@
+{
+  "inputs": [
+    { "type": "promptString", "id": "api-key", "description": "API key", "password": true }
+  ],
+  "servers": {
+    "api": {
+      "type": "http",
+      "url": "https://api.example.com/mcp",
+      "headers": { "Authorization": "Bearer ${input:api-key}" }
+    }
+  }
+}

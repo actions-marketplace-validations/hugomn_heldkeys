@@ -1,0 +1,29 @@
+# Deliberately insecure workflow, used only by demo.tape to show `heldkeys ci`.
+# Do not copy it. It runs an AI agent on issue comments, after checking
+# out the pull request's head, with a write token, cloud keys and shell access:
+# the HK-WF-001, HK-WF-002, HK-WF-004, HK-WF-005 and HK-WF-006 patterns in one
+# file. examples/vulnerable-agent-workflow.yml is the annotated version.
+name: triage
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ github.event.issue.number }}/head
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: --allowedTools "Bash(*)"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

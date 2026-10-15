@@ -1,0 +1,56 @@
+# Job ids with secrets that redact::scrub must mask (tests/redaction.rs).
+on: issue_comment
+permissions: {contents: read}
+jobs:
+  "c01 https://user:pa/ssFAKEslash0901@host.example.com/x":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: openai/codex-action@v1
+  "c02 https://user%3AFAKEpct0902@host.example.com":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: openai/codex-action@v1
+  "c03 x://u:FAKEdigest0903@sha256:abc":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: openai/codex-action@v1
+  "c04 Authorization: Bearer FAKEbearer0904abcdef":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: openai/codex-action@v1
+  "c05 Bearer FAKEbare0910xyz":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: openai/codex-action@v1
+  "c06 https://h.example.com/?access_token=FAKEquery0911&x=1":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: openai/codex-action@v1
+  "c07 https://h.example.com/#access_token=FAKEfrag0912":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: openai/codex-action@v1
+  "c08 https://h.example.com/a?code=FAKEcode0913":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: openai/codex-action@v1
+  "c09 --password FAKEflag0914":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: openai/codex-action@v1
+  "c10 --api-key=FAKEflag0915":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: openai/codex-action@v1
+  "c11 --token FAKEflag0916":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: openai/codex-action@v1
+  "c12 --secret=FAKEflag0917":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: openai/codex-action@v1
+  "c13 see https://evil.example/job and www.evil.example":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: "openai/codex-action@main https://evil.example/fix [guide](https://evil.example/g)"

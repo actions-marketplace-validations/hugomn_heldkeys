@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "search": {
+      "serverUrl": "https://search.example.com/mcp?api_key=FAKEsearchAPIkey0309&region=eu"
+    }
+  }
+}

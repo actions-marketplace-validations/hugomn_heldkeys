@@ -1,0 +1,212 @@
+on: workflow_call
+jobs:
+  k0:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k1:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k3:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k4:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k5:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k6:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k7:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k8:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k9:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k10:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k11:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k12:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k13:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k14:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k15:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k16:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k17:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k18:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k19:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k20:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k21:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k22:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k23:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k24:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k25:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k26:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k27:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k28:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}
+  k29:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_args: --allowedTools Bash
+          github_token: ${{ secrets.FAKE_PAT }}

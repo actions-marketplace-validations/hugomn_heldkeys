@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "gitlab": {
+      "httpUrl": "https://gitlab.example.com/api/v4/mcp",
+      "headers": { "PRIVATE-TOKEN": "glpat-FAKEFAKEFAKEFAKEFAKE0315" }
+    },
+    "safe": {
+      "command": "node",
+      "args": ["server.js"],
+      "env": { "API_KEY": "$GEMINI_SECRET" }
+    }
+  }
+}

@@ -1,0 +1,2 @@
+[credential "https://alice:FAKEgitcfgPW0705@github.example.com"]
+	helper = store

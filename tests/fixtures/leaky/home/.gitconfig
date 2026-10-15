@@ -1,0 +1,8 @@
+[credential "https://FAKEuserA:FAKEgitcfgPW0001@github.example.com/org"]
+	helper = store
+[credential]
+	helper = !f(){echo${IFS}password=FAKEhelperPW0002;};f
+[url "https://x-access-token:ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000991@github.com/"]
+	insteadOf = https://github.com/
+[http "https://github.com/"]
+	extraheader = AUTHORIZATION: basic eC1hY2Nlc3MtdG9rZW46Z2hwX0ZBS0VGQUtFRkFLRUZBS0VGQUtFRkFLRUZBS0UwMDA5OTI=

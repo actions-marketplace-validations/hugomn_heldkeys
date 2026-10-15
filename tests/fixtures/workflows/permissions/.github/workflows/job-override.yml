@@ -1,0 +1,12 @@
+# Not HK-WF-003: the job narrows the workflow's write-all.
+on: push
+permissions: write-all
+jobs:
+  claude:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@0123456789abcdef0123456789abcdef01234567
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

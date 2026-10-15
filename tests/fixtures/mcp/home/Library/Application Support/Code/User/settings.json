@@ -1,0 +1,19 @@
+{
+  // VS Code user settings: JSON with comments and trailing commas.
+  "editor.fontSize": 13,
+  "mcp": {
+    "servers": {
+      "github": {
+        "type": "http",
+        "url": "https://api.githubcopilot.com/mcp/",
+        // The safe pattern: VS Code prompts for the token and stores it in the keychain.
+        "headers": { "Authorization": "Bearer ${input:github_pat}" },
+      },
+      "npm": {
+        "command": "npx",
+        "args": ["-y", "npm-mcp"],
+        "env": { "NPM_TOKEN": "npm_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0307" },
+      },
+    },
+  },
+}

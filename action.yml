@@ -1,0 +1,180 @@
+# heldkeys as a composite GitHub Action.
+#
+# Downloads the release binary for the runner, checks it against the release's
+# SHA-256 file, runs `heldkeys ci` and appends a Markdown report to the job
+# summary. With `sarif: true` it also writes SARIF and uploads it to code
+# scanning, which needs `security-events: write` on the job.
+#
+# The only other action it uses is github/codeql-action/upload-sarif, pinned
+# to a full commit SHA, and only when `sarif` is true. Inputs reach the scripts
+# through env vars, never through ${{ }} inside `run:`, so a crafted input
+# cannot inject shell. The env vars are prefixed HELDKEYS_, which heldkeys
+# itself ignores when it inventories the job's environment.
+
+name: heldkeys
+description: Which credentials can an AI agent in this job reach? Audits AI agent steps in your workflows and the job's runtime exposure.
+author: Hugo Nogueira
+branding:
+  icon: key
+  color: red
+
+inputs:
+  version:
+    description: heldkeys version to install, such as 0.1.1, or latest (the newest release).
+    required: false
+    default: latest
+  fail-on:
+    description: Fail the step when a finding reaches this level (none, high, medium, low, long-lived-write).
+    required: false
+    default: high
+  format:
+    description: Format of the report printed to the log (text, json, markdown, sarif).
+    required: false
+    default: text
+  sarif:
+    description: >-
+      Write a SARIF report and upload it to GitHub code scanning. The job needs
+      the security-events write permission (and actions read in private repositories).
+    required: false
+    default: "false"
+  path:
+    description: Directory of the repository to analyse, relative to the workspace.
+    required: false
+    default: "."
+  repo-secrets:
+    description: Also scan tracked files on the current branch for tokens of known formats.
+    required: false
+    default: "false"
+
+outputs:
+  sarif-file:
+    description: Path of the SARIF report that was uploaded. Empty when sarif is false.
+    value: ${{ steps.run.outputs.sarif-file }}
+  markdown-file:
+    description: Path of the Markdown report (the same text as the job summary), for example to post as a PR comment.
+    value: ${{ steps.run.outputs.markdown-file }}
+  summary:
+    description: The one-line verdict, for example "3 AI agent workflow risks, 2 credentials reachable in this job.".
+    value: ${{ steps.run.outputs.summary }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install heldkeys
+      id: install
+      shell: bash
+      env:
+        HELDKEYS_INPUT_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+
+        case "${RUNNER_OS}/${RUNNER_ARCH}" in
+          Linux/X64)   target=x86_64-unknown-linux-musl ;;
+          Linux/ARM64) target=aarch64-unknown-linux-musl ;;
+          macOS/X64)   target=x86_64-apple-darwin ;;
+          macOS/ARM64) target=aarch64-apple-darwin ;;
+          *)
+            echo "::error::heldkeys has no release binary for ${RUNNER_OS}/${RUNNER_ARCH}"
+            exit 2
+            ;;
+        esac
+
+        version="${HELDKEYS_INPUT_VERSION}"
+        if ! [[ "$version" =~ ^(latest|v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?)$ ]]; then
+          echo "::error::invalid heldkeys version: $version"
+          exit 2
+        fi
+        if [ "$version" = latest ]; then
+          base="https://github.com/hugomn/heldkeys/releases/latest/download"
+        else
+          base="https://github.com/hugomn/heldkeys/releases/download/v${version#v}"
+        fi
+
+        asset="heldkeys-${target}.tar.xz"
+        dir="${RUNNER_TEMP}/heldkeys-install"
+        rm -rf "$dir"
+        mkdir -p "$dir"
+        cd "$dir"
+        curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o "$asset" "$base/$asset"
+        curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o "$asset.sha256" "$base/$asset.sha256"
+
+        # The .sha256 file holds "<hash>  <file name>"; compare the hash only.
+        expected="$(awk '{print $1; exit}' "$asset.sha256")"
+        if command -v sha256sum >/dev/null 2>&1; then
+          actual="$(sha256sum "$asset" | awk '{print $1}')"
+        else
+          actual="$(shasum -a 256 "$asset" | awk '{print $1}')"
+        fi
+        if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+          echo "::error::checksum mismatch for $asset (expected ${expected:-nothing}, got $actual)"
+          exit 2
+        fi
+
+        tar -xJf "$asset"
+        bin="$dir/heldkeys-${target}/heldkeys"
+        "$bin" --version
+        echo "bin=$bin" >> "$GITHUB_OUTPUT"
+
+    - name: Run heldkeys ci
+      id: run
+      shell: bash
+      env:
+        HELDKEYS_BIN: ${{ steps.install.outputs.bin }}
+        HELDKEYS_INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        HELDKEYS_INPUT_FORMAT: ${{ inputs.format }}
+        HELDKEYS_INPUT_SARIF: ${{ inputs.sarif }}
+        HELDKEYS_INPUT_PATH: ${{ inputs.path }}
+        HELDKEYS_INPUT_REPO_SECRETS: ${{ inputs.repo-secrets }}
+      run: |
+        set -euo pipefail
+
+        args=(ci --path "$HELDKEYS_INPUT_PATH")
+        if [ "$HELDKEYS_INPUT_REPO_SECRETS" = "true" ]; then
+          args+=(--repo-secrets)
+        fi
+
+        # Job summary. --fail-on none: these runs only produce files; the last
+        # run below decides whether the step fails. With --output, stdout gets
+        # the one-line verdict.
+        report="${RUNNER_TEMP}/heldkeys.md"
+        summary="$("$HELDKEYS_BIN" "${args[@]}" --format markdown --fail-on none --output "$report")"
+        if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+          cat "$report" >> "$GITHUB_STEP_SUMMARY"
+        fi
+        echo "summary=$summary" >> "$GITHUB_OUTPUT"
+        echo "markdown-file=$report" >> "$GITHUB_OUTPUT"
+
+        sarif_file=""
+        if [ "$HELDKEYS_INPUT_SARIF" = "true" ]; then
+          sarif_file="${RUNNER_TEMP}/heldkeys.sarif"
+          "$HELDKEYS_BIN" "${args[@]}" --format sarif --fail-on none --output "$sarif_file" > /dev/null
+        fi
+        echo "sarif-file=$sarif_file" >> "$GITHUB_OUTPUT"
+        # SARIF paths are relative to the analysed directory; upload-sarif
+        # needs it as checkout_path to match them to the repository.
+        echo "checkout-path=$(cd "$HELDKEYS_INPUT_PATH" && pwd)" >> "$GITHUB_OUTPUT"
+
+        # The report in the log. Its exit code (1 when a finding reaches
+        # fail-on, 2 on a usage or runtime error) is applied in the last step,
+        # after the SARIF upload, so findings reach code scanning either way.
+        code=0
+        "$HELDKEYS_BIN" "${args[@]}" --format "$HELDKEYS_INPUT_FORMAT" --fail-on "$HELDKEYS_INPUT_FAIL_ON" || code=$?
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+
+    - name: Upload SARIF to code scanning
+      if: ${{ inputs.sarif == 'true' }}
+      uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+      with:
+        sarif_file: ${{ steps.run.outputs.sarif-file }}
+        checkout_path: ${{ steps.run.outputs.checkout-path }}
+        category: heldkeys
+
+    - name: Apply fail-on
+      shell: bash
+      env:
+        HELDKEYS_EXIT_CODE: ${{ steps.run.outputs.exit-code }}
+      run: |
+        if [ "$HELDKEYS_EXIT_CODE" = 1 ]; then
+          echo "::error::heldkeys: a finding reached fail-on; see the job summary"
+        fi
+        exit "$HELDKEYS_EXIT_CODE"

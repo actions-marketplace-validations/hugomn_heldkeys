@@ -1,0 +1,11 @@
+# HK-WF-006: gemini CLI in yolo mode with a write token.
+on: push
+permissions:
+  contents: write
+jobs:
+  gemini:
+    runs-on: ubuntu-latest
+    steps:
+      - run: gemini --yolo -p "Fix the failing tests and push"
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

@@ -1,0 +1,21 @@
+heldkeys
+Copyright (c) 2026 Hugo Nogueira
+Licensed under the MIT License (see LICENSE).
+
+Token formats
+
+The token prefixes and shapes in src/rules.rs (for example AKIA, ghp_,
+github_pat_, sk-ant-, npm_, pypi-) are taken from the public documentation
+of the vendors that issue them.
+
+If a detection rule is adapted from gitleaks or betterleaks (both MIT
+licensed), their copyright notice is reproduced below, as their licenses
+require. Rules are never taken from AGPL or CC-BY-SA sources.
+
+(No third-party notices yet.)
+
+Test fixtures
+
+Every credential under tests/fixtures is fake: the AWS key is the example
+key from AWS documentation (AKIAIOSFODNN7EXAMPLE), and the rest are real
+token prefixes followed by the filler "FAKE". None of them work anywhere.

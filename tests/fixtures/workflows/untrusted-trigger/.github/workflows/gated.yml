@@ -1,0 +1,12 @@
+# HK-WF-001 lowered to Medium: only the repo owner can start it.
+on: [issue_comment]
+permissions:
+  contents: write
+jobs:
+  claude:
+    if: github.event.comment.author_association == 'OWNER'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@0123456789abcdef0123456789abcdef01234567
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
