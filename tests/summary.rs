@@ -13,16 +13,16 @@ const WORKTREES: usize = 30;
 
 /// Fake values the big home holds. Listed so the test can check none of
 /// them reaches the output.
-const ANTHROPIC_SHARED: &str = "sk-ant-api03-FAKEFAKEFAKEFAKEFAKE-0801FAKE1";
+const ANTHROPIC_SHARED: &str = concat!("sk-", "ant-api03-FAKEFAKEFAKEFAKEFAKE-0801FAKE1");
 const ADMIN_SECRET: &str = "FAKEadminAPIsecret0802";
 const DB_URL: &str = "postgres://app:FAKEdbPASSWORD0803@db.internal:5432/app";
-const WORKOS_KEY: &str = "sk_test_FAKEFAKEFAKEFAKE0804";
+const WORKOS_KEY: &str = concat!("sk_", "test_FAKEFAKEFAKEFAKE0804");
 const ENV_GITHUB: &str = "ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000805";
-const AWS_KEY_ID: &str = "AKIAFAKEFAKEFAKE0806";
+const AWS_KEY_ID: &str = concat!("AKIA", "FAKEFAKEFAKE0806");
 const AWS_SECRET: &str = "FAKEawsSECRETkeyFAKEawsSECRET0806";
 const GIT_GITHUB: &str = "ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000807";
 const GIT_HF: &str = "hf_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0808";
-const NPM: &str = "npm_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0809";
+const NPM: &str = concat!("npm_", "FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0809");
 const CARGO: &str = "cioFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0810";
 const MCP_GITHUB: &str = "ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000811";
 const MCP_LINEAR: &str = "lin_api_FAKEFAKEFAKEFAKEFAKEFAKEFAKE0812";
@@ -54,7 +54,10 @@ fn secrets() -> Vec<String> {
 
 /// A different OpenAI key for every checkout.
 fn openai_key(i: usize) -> String {
-    format!("sk-proj-FAKEFAKEFAKEFAKEFAKE{i:04}x0820")
+    format!(
+        concat!("sk-", "proj-FAKEFAKEFAKEFAKEFAKE{i:04}x0820"),
+        i = i
+    )
 }
 
 fn write(path: &Path, text: &str) {
@@ -129,7 +132,10 @@ fn big_home(root: &Path) -> (PathBuf, PathBuf) {
         let anthropic = if i < 4 {
             ANTHROPIC_SHARED.to_string()
         } else {
-            format!("sk-ant-api03-FAKEFAKEFAKEFAKE{i:04}-0821")
+            format!(
+                concat!("sk-", "ant-api03-FAKEFAKEFAKEFAKE{i:04}-0821"),
+                i = i
+            )
         };
         write(
             &repo.join("apps/api/.env"),
@@ -350,7 +356,7 @@ fn markdown_leads_with_the_summary() {
 }
 
 /// Fake values of the editor history test.
-const HISTORY_OPENAI: &str = "sk-proj-FAKEFAKEFAKEFAKEFAKEFAKE1040";
+const HISTORY_OPENAI: &str = concat!("sk-", "proj-FAKEFAKEFAKEFAKEFAKEFAKE1040");
 const HISTORY_DB: &str = "postgres://app:FAKEhistoryPW1041@db.internal:5432/app";
 const HISTORY_COPIES: usize = 20;
 

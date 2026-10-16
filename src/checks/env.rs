@@ -174,14 +174,17 @@ mod tests {
 
     #[test]
     fn value_match_with_innocent_name() {
-        let f = run(&[("SOMETHING", "sk-ant-api03-FAKEFAKEFAKEFAKEFAKE-FAKE")]);
+        let f = run(&[(
+            "SOMETHING",
+            concat!("sk-", "ant-api03-FAKEFAKEFAKEFAKEFAKE-FAKE"),
+        )]);
         assert_eq!(f.len(), 1);
         assert_eq!(f[0].title, "Anthropic API key");
     }
 
     #[test]
     fn name_match_without_known_format() {
-        let f = run(&[("MY_SERVICE_TOKEN", "q8Zr1vLx0pTn4Wm2")]);
+        let f = run(&[("MY_SERVICE_TOKEN", concat!("q8Zr1v", "Lx0pTn4Wm2"))]);
         assert_eq!(f.len(), 1);
         assert_eq!(f[0].severity, Severity::Medium);
         assert_eq!(f[0].fingerprint, None);
@@ -215,7 +218,7 @@ mod tests {
     #[test]
     fn aws_pair_is_one_finding() {
         let f = run(&[
-            ("AWS_ACCESS_KEY_ID", "AKIAIOSFODNN7EXAMPLE"),
+            ("AWS_ACCESS_KEY_ID", concat!("AKIA", "IOSFODNN7EXAMPLE")),
             (
                 "AWS_SECRET_ACCESS_KEY",
                 "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",

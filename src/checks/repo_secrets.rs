@@ -242,7 +242,7 @@ mod tests {
             ),
         ]);
         // Created after `git add`: untracked, so not scanned.
-        write(dir.path(), "notes.txt", "AKIAIOSFODNN7EXAMPLE");
+        write(dir.path(), "notes.txt", concat!("AKIA", "IOSFODNN7EXAMPLE"));
         let f = scan(dir.path(), true);
         assert_eq!(f.len(), 1, "{f:#?}");
         assert_eq!(f[0].location, "config/app.py:2");

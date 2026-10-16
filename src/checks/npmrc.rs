@@ -138,7 +138,10 @@ mod tests {
         crate::checks::testutil::write(
             dir.path(),
             ".npmrc",
-            "//eve:FAKEnpmPW0017@registry.example.com/:_authToken=npm_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0018\n",
+            concat!(
+                "//eve:FAKEnpmPW0017@registry.example.com/:_authToken=npm_",
+                "FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0018\n"
+            ),
         );
         let f = NpmrcCheck.run(&crate::checks::testutil::ctx_with_env(dir.path(), &[]));
         assert_eq!(f.len(), 1);

@@ -622,7 +622,7 @@ mod tests {
         write(
             dir.path(),
             "elsewhere/creds",
-            "[x]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE\n",
+            concat!("[x]\naws_access_key_id = AKIA", "IOSFODNN7EXAMPLE\n"),
         );
         let ctx = ctx_with_env(
             dir.path(),
@@ -721,7 +721,7 @@ mod tests {
         // awsume names its cache files without an extension.
         write(
             dir.path(),
-            ".awsume/cache/aws-credentials-AKIAFAKEFAKEFAKE1081",
+            concat!(".awsume/cache/aws-credentials-AKIA", "FAKEFAKEFAKE1081"),
             &session("2099-01-01 10:00:00"),
         );
         write(

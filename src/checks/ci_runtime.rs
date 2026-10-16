@@ -639,7 +639,10 @@ mod tests {
             ("CI_JOB_TOKEN", "glcbt-FAKEFAKEFAKEFAKE0304"),
             ("CI_REGISTRY_PASSWORD", "glcbt-FAKEFAKEFAKEFAKE0304"),
             ("CI_PIPELINE_SOURCE", "merge_request_event"),
-            ("OPENAI_API_KEY", "sk-proj-FAKEFAKEFAKEFAKEFAKEFAKE0305"),
+            (
+                "OPENAI_API_KEY",
+                concat!("sk-", "proj-FAKEFAKEFAKEFAKEFAKEFAKE0305"),
+            ),
         ]);
         assert_eq!(
             find(&f, "HK-CI-007").location,

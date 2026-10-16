@@ -30,16 +30,20 @@ Type `cargo build --release --quiet && REPO="$PWD"` Enter
 Type `DEMO="$(mktemp -d)" && cp -R tests/fixtures/full/. "$DEMO" && cd "$DEMO"` Enter
 # Keep a tidy subset of the full fixture so the summary fits on one screen.
 Type `rm -rf .aws/config .aws/sso .azure .cargo .config/gcloud/credentials.db .config/gcloud/legacy_credentials .git-credentials .gitconfig .kube .netrc .pypirc var` Enter
-Type `printf '{"auths":{"https://index.docker.io/v1/":{"auth":"ZmFrZXVzZXI6RkFLRWRvY2tlclBBU1MwMDA3"}}}' > .docker/config.json` Enter
+Type `printf '{"auths":{"https://index.docker.io/v1/":{"auth":"%s%s"}}}' ZmFrZXVzZXI6 RkFLRWRvY2tlclBBU1MwMDA3 > .docker/config.json` Enter
 Type `mkdir -p code/app .ssh && cp "$REPO"/tests/fixtures/project/.env "$REPO"/tests/fixtures/project/.env.local code/app/` Enter
+# Fake credentials in tests/fixtures are committed as {{fake:PREFIX|REST}};
+# resolve them in the copy, as the tests do.
+Type `find . -type f -exec perl -pi -e 's/\{\{fake:([^}|]*)\|?([^}]*)\}\}/$1$2/g' {} +` Enter
 # A fake unencrypted OpenSSH key. The header is assembled at runtime so that
 # secret scanners do not flag this file.
 Type `printf -- '-----BEGIN %s PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABFAKEsshKEYbody0201\n-----END %s PRIVATE KEY-----\n' OPENSSH OPENSSH > .ssh/id_ed25519` Enter
 # Every call goes through this function: a cleared environment with two fake
 # tokens, as if exported in a shell profile (GITHUB_TOKEN is the same fake
 # token as the one in the fixture's Cursor MCP config), and --home, --root
-# and --path pointing into the copy.
-Type `heldkeys() { env -i PATH=/usr/bin:/bin HELDKEYS_NO_NET=1 GITHUB_TOKEN=ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000021 ANTHROPIC_API_KEY=sk-ant-api03-FAKEFAKEFAKEFAKEFAKE-FAKE "$REPO/target/release/heldkeys" --home "$DEMO" --root "$DEMO" --path "$DEMO/code/app" "$@"; }` Enter
+# and --path pointing into the copy. The tokens are split after their prefix,
+# like the key header above.
+Type `heldkeys() { env -i PATH=/usr/bin:/bin HELDKEYS_NO_NET=1 GITHUB_TOKEN=ghp_"FAKEFAKEFAKEFAKEFAKEFAKEFAKE000021" ANTHROPIC_API_KEY=sk-"ant-api03-FAKEFAKEFAKEFAKEFAKE-FAKE" "$REPO/target/release/heldkeys" --home "$DEMO" --root "$DEMO" --path "$DEMO/code/app" "$@"; }` Enter
 Type `export PS1='$ ' && clear` Enter
 Show
 

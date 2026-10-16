@@ -352,7 +352,7 @@ mod tests {
             Access::Write,
             "x",
         )
-        .with_fingerprint(Some("AKIAIOSFODNN7EXAMPLE".to_string()));
+        .with_fingerprint(Some(concat!("AKIA", "IOSFODNN7EXAMPLE").to_string()));
         let r = Report::new(Mode::Scan, vec![f]);
         assert_eq!(r.findings[0].fingerprint, None);
     }

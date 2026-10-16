@@ -4,6 +4,12 @@ Every credential in these directories is fake: AWS's documented example key
 (AKIAIOSFODNN7EXAMPLE), or a real token prefix followed by the filler "FAKE".
 None of them work anywhere.
 
+Fake credentials are committed as `{{fake:PREFIX|REST}}` markers, with the `|`
+right after the token's public prefix if it has one, so secret scanners run on
+this repository do not flag them. The tests never read these files directly:
+`tests/common/fixtures.rs` copies this directory to the system temp directory
+with every marker replaced by `PREFIXREST`, and `demo.tape` does the same.
+
 - `empty/`: a home with nothing in it.
 - `full/`: a home (and filesystem root) with one of every file-based credential.
 - `aws-sso/`: AWS profiles that use SSO and roles only, no static keys.

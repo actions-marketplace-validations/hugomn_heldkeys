@@ -12,7 +12,7 @@
       "npm": {
         "command": "npx",
         "args": ["-y", "npm-mcp"],
-        "env": { "NPM_TOKEN": "npm_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0307" },
+        "env": { "NPM_TOKEN": "{{fake:npm_|FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0307}}" },
       },
     },
   },

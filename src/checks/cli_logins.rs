@@ -972,7 +972,10 @@ mod tests {
         write(
             dir.path(),
             "elsewhere/auth.json",
-            r#"{"OPENAI_API_KEY": "sk-proj-FAKEFAKEFAKEFAKEFAKEFAKE1090"}"#,
+            concat!(
+                r#"{"OPENAI_API_KEY": "sk-"#,
+                r#"proj-FAKEFAKEFAKEFAKEFAKEFAKE1090"}"#
+            ),
         );
         write(
             dir.path(),

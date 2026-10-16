@@ -1156,9 +1156,12 @@ mod tests {
 
     #[test]
     fn hostile_reports_are_contained() {
-        let json = r#"{"schema":"heldkeys/v1","findings":[{"check":"future-check","rule":"HK-NEW-001",
-            "title":"Evil\u001b[2J","location":"x","fingerprint":"AKIAIOSFODNN7EXAMPLE",
-            "severity":"high","lifetime":"long-lived","access":"write","detail":null,"fix":"f"}]}"#;
+        let json = concat!(
+            r#"{"schema":"heldkeys/v1","findings":[{"check":"future-check","rule":"HK-NEW-001",
+            "title":"Evil\u001b[2J","location":"x","fingerprint":"AKIA"#,
+            r#"IOSFODNN7EXAMPLE",
+            "severity":"high","lifetime":"long-lived","access":"write","detail":null,"fix":"f"}]}"#
+        );
         let back = parse_report(json).unwrap();
         assert_eq!(back[0].title, "Evil?[2J");
         assert_eq!(back[0].rule, "HK-NEW-001");

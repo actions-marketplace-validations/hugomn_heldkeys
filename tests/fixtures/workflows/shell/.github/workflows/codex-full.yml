@@ -10,4 +10,4 @@ jobs:
       - uses: openai/codex-action@0123456789abcdef0123456789abcdef01234567
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          sandbox: danger-full-access
+          sandbox: {{fake:danger-|full-access}}

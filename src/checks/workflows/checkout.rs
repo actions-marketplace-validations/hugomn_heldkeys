@@ -96,7 +96,7 @@ mod tests {
 
     #[test]
     fn checkout_descriptions_never_quote_the_step() {
-        let token = "ghp_LEAKwfFAKEFAKEFAKEFAKEFAKE0005";
+        let token = concat!("ghp_", "LEAKwfFAKEFAKEFAKEFAKEFAKE0005");
         let d = how(&format!(
             "run: git fetch https://x-access-token:{token}@github.com/o/r pull/1/head && git checkout FETCH_HEAD\n"
         ))

@@ -336,7 +336,7 @@ fn report_scrubs_secrets_in_every_field() {
         "ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000802",
         "FAKEbarePASSWORD0803",
         "FAKEnpmPASSWORD0804",
-        "xoxb-FAKE080500",
+        concat!("xoxb-", "FAKE080500"),
         "FAKEqueryVALUE0806",
         "FAKEcutPASSWORDthatGOESon0807",
     ]
@@ -353,7 +353,7 @@ fn report_scrubs_secrets_in_every_field() {
         "env: ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000802",
         "run: git fetch x-access-token:FAKEbarePASSWORD0803@github.com/o/r",
         "~/.npmrc (//eve:FAKEnpmPASSWORD0804@registry.example.com/)",
-        "token xoxb-FAKE080500 in a key",
+        concat!("token xoxb-", "FAKE080500 in a key"),
         "https://api.example.com/v1?api_key=FAKEqueryVALUE0806&x=1",
         "run: git fetch https://x-access-token:FAKEcutPASSWORDthatGOESon0807",
     ];

@@ -21,11 +21,11 @@ branding:
 inputs:
   version:
     description: >-
-      heldkeys version to install, such as 0.2.2, or latest (the newest release).
+      heldkeys version to install, such as 0.2.3, or latest (the newest release).
       The default is the release this action comes from, so pinning the action
       pins the binary.
     required: false
-    default: "0.2.2"
+    default: "0.2.3"
   fail-on:
     description: Fail the step when a finding reaches this level (none, high, medium, low, long-lived-write).
     required: false

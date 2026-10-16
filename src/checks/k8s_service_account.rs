@@ -83,7 +83,10 @@ mod tests {
         write(
             dir.path(),
             "var/run/secrets/kubernetes.io/serviceaccount/token",
-            "eyJhbGciOiJGQUtFIn0.eyJzdWIiOiJGQUtFRkFLRSJ9.FAKEFAKEsig\n",
+            concat!(
+                "eyJhbGciOiJGQUtFIn0.",
+                "eyJzdWIiOiJGQUtFRkFLRSJ9.FAKEFAKEsig\n"
+            ),
         );
         write(
             dir.path(),

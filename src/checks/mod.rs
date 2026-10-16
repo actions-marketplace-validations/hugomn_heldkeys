@@ -152,12 +152,17 @@ pub(crate) mod testutil {
 
     use crate::context::Context;
 
-    /// `tests/fixtures/<case>`.
+    #[allow(dead_code)]
+    mod fixtures {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/common/fixtures.rs"
+        ));
+    }
+
+    /// `tests/fixtures/<case>`, from the copy with fake credentials resolved.
     pub fn fixture(case: &str) -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests")
-            .join("fixtures")
-            .join(case)
+        fixtures::fixtures_root().join(case)
     }
 
     /// A context whose root, home and cwd are the fixture, with an empty

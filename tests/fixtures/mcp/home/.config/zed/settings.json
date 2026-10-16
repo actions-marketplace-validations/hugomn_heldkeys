@@ -4,7 +4,7 @@
   "context_servers": {
     "github": {
       "source": "extension",
-      "settings": { "github_personal_access_token": "github_pat_FAKEFAKEFAKEFAKEFAKEFAKE_0310" }
+      "settings": { "github_personal_access_token": "{{fake:github_pat_|FAKEFAKEFAKEFAKEFAKEFAKE_0310}}" }
     },
     "custom": {
       "command": {

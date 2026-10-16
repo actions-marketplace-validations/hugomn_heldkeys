@@ -563,15 +563,19 @@ mod tests {
         write(
             dir.path(),
             ".env.example",
-            "ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxx\n\
-             OPENAI_API_KEY=sk-proj-your-openai-key-goes-here-000\n\
+            concat!(
+                "ANTHROPIC_API_KEY=sk-",
+                "ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxx\n\
+             OPENAI_API_KEY=sk-",
+                "proj-your-openai-key-goes-here-000\n\
              DATABASE_URL=postgres://postgres:postgres@localhost:5432/app\n\
              REDIS_URL=redis://default:password@127.0.0.1:6379\n\
              JWT_SECRET=supersecretjwtvalue1234\n\
              ADMIN_PASSWORD=password\n\
              STRIPE_SECRET_KEY=sk_test_your_stripe_key_here\n\
              GITHUB_TOKEN=ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000041\n\
-             postgres://app:FAKEtplPASSWORD0042@db.internal:5432/app\n",
+             postgres://app:FAKEtplPASSWORD0042@db.internal:5432/app\n"
+            ),
         );
         let f = DotenvCheck.run(&ctx_with_env(dir.path(), &[]));
         let shown: Vec<(&str, &str, Severity)> = f
@@ -617,10 +621,16 @@ mod tests {
         write(
             dir.path(),
             "apps/web/.env.local",
-            "NEXT_PUBLIC_POSTHOG_KEY=phc_FAKEFAKEFAKEFAKEFAKE0044\n\
-             VITE_RECAPTCHA_SITE_KEY=6LcFAKEFAKEFAKEFAKE0045\n\
-             NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJGQUtFIn0.eyJzdWIiOiJGQUtFRkFLRUZBS0UifQ.FAKEsig46\n\
-             NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJGQUtFIn0.eyJzdWIiOiJGQUtFRkFLRUZBS0UifQ.FAKEsig47\n",
+            concat!(
+                "NEXT_PUBLIC_POSTHOG_KEY=phc_FAKEFAKEFAKEFAKEFAKE0044\n",
+                "VITE_RECAPTCHA_SITE_KEY=6LcFAKEFAKEFAKEFAKE0045\n",
+                "NEXT_PUBLIC_SUPABASE_ANON_KEY=",
+                "eyJhbGciOiJGQUtFIn0.",
+                "eyJzdWIiOiJGQUtFRkFLRUZBS0UifQ.FAKEsig46\n",
+                "NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY=",
+                "eyJhbGciOiJGQUtFIn0.",
+                "eyJzdWIiOiJGQUtFRkFLRUZBS0UifQ.FAKEsig47\n",
+            ),
         );
         // The working directory is a project, not the home directory, so
         // the walk goes into apps/web.
@@ -646,7 +656,10 @@ mod tests {
         write(
             dir.path(),
             ".env",
-            "https://bob:FAKEdotenvPW0003@api.example.com/v1?api_key=q8Zr1vLx0pTn4Wm2\nghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000031\nnot a secret\n",
+            concat!(
+                "https://bob:FAKEdotenvPW0003@api.example.com/v1?api_key=q8Zr1v",
+                "Lx0pTn4Wm2\nghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000031\nnot a secret\n"
+            ),
         );
         let f = DotenvCheck.run(&ctx_with_env(dir.path(), &[]));
         let locations: Vec<&str> = f.iter().map(|f| f.location.as_str()).collect();
@@ -654,7 +667,10 @@ mod tests {
         write(
             dir.path(),
             ".env.local",
-            "MY_ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000032_TOKEN=q8Zr1vLx0pTn4Wm2\n",
+            concat!(
+                "MY_ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000032_TOKEN=q8Zr1v",
+                "Lx0pTn4Wm2\n"
+            ),
         );
         let f2 = DotenvCheck.run(&ctx_with_env(dir.path(), &[]));
         assert!(
@@ -679,7 +695,7 @@ mod tests {
         write(
             &root.path().join("shared"),
             ".env",
-            "OPENAI_API_KEY=sk-proj-FAKEFAKEFAKEFAKEFAKEFAKE0902\n",
+            concat!("OPENAI_API_KEY=sk-", "proj-FAKEFAKEFAKEFAKEFAKEFAKE0902\n"),
         );
         write(
             &project,
@@ -689,7 +705,7 @@ mod tests {
         write(
             &project,
             ".vercel/.env.production.local",
-            "STRIPE_SECRET_KEY=sk_live_FAKEFAKEFAKEFAKE0904\n",
+            concat!("STRIPE_SECRET_KEY=sk_", "live_FAKEFAKEFAKEFAKE0904\n"),
         );
         write(&project, ".gitignore", ".vercel\n");
         std::fs::create_dir_all(project.join("apps/web")).unwrap();

@@ -38,13 +38,13 @@ jobs:
 The step fails when a finding reaches `fail-on` (High by default), after the report is in the job summary and the SARIF upload is done, so a failing run still shows its findings.
 
 > [!TIP]
-> `@v0` follows the latest v0 release, which is convenient but means the code you run can change under you. For anything that matters, pin the action to a full commit SHA with the version in a comment, for example `uses: hugomn/heldkeys@<full-commit-sha> # v0.2.2`, and let Dependabot update it. The action installs the heldkeys binary of its own release unless you set `version`, so pinning the action pins the binary too. heldkeys reports unpinned agent actions itself ([HK-WF-005](rules/HK-WF-005.md)), and zizmor reports the rest.
+> `@v0` follows the latest v0 release, which is convenient but means the code you run can change under you. For anything that matters, pin the action to a full commit SHA with the version in a comment, for example `uses: hugomn/heldkeys@<full-commit-sha> # v0.2.3`, and let Dependabot update it. The action installs the heldkeys binary of its own release unless you set `version`, so pinning the action pins the binary too. heldkeys reports unpinned agent actions itself ([HK-WF-005](rules/HK-WF-005.md)), and zizmor reports the rest.
 
 ## Inputs
 
 | Input | Default | Description |
 |---|---|---|
-| `version` | this action's release | heldkeys release to install, such as `0.2.2`, or `latest` for the newest release. |
+| `version` | this action's release | heldkeys release to install, such as `0.2.3`, or `latest` for the newest release. |
 | `fail-on` | `high` | Fail the step when a finding reaches this level: `none`, `high`, `medium`, `low` or `long-lived-write`. |
 | `format` | `text` | Format of the report printed to the log: `text`, `json`, `markdown` or `sarif`. |
 | `sarif` | `false` | Write a SARIF report and upload it to code scanning with `github/codeql-action/upload-sarif` (category `heldkeys`). The job needs `security-events: write`, and `actions: read` in private repositories. |

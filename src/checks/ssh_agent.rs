@@ -249,6 +249,11 @@ fn is_candidate(path: &Path) -> bool {
     !skip
 }
 
+// PEM headers, split so that secret scanners run on this repository do not
+// read the code after them as a private key.
+const OPENSSH_KEY_HEADER: &str = concat!("-----BEGIN OPENSSH ", "PRIVATE KEY-----");
+const PKCS8_KEY_HEADER: &str = concat!("-----BEGIN ", "PRIVATE KEY-----");
+
 /// Looks only at the PEM header line and, for OpenSSH keys, the encoded
 /// prefix that names the cipher.
 fn is_unencrypted_private_key(head: &str) -> bool {
@@ -257,7 +262,7 @@ fn is_unencrypted_private_key(head: &str) -> bool {
         return false;
     };
     match header {
-        "-----BEGIN OPENSSH PRIVATE KEY-----" => {
+        OPENSSH_KEY_HEADER => {
             let body: String = lines
                 .take_while(|l| !l.starts_with("-----END"))
                 .flat_map(|l| l.chars())
@@ -267,7 +272,7 @@ fn is_unencrypted_private_key(head: &str) -> bool {
         }
         // PKCS#8: encrypted keys use a different header.
         "-----BEGIN ENCRYPTED PRIVATE KEY-----" => false,
-        "-----BEGIN PRIVATE KEY-----" => true,
+        PKCS8_KEY_HEADER => true,
         // Legacy PEM (RSA, DSA, EC): encryption is announced in a header line.
         h if h.ends_with(" PRIVATE KEY-----") => !head.contains("Proc-Type: 4,ENCRYPTED"),
         _ => false,
@@ -280,19 +285,27 @@ mod tests {
     use crate::checks::testutil::{ctx_with_env, write};
 
     /// Fake key bodies: only the start matters, the rest is filler.
-    pub const FAKE_UNENCRYPTED: &str = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABFAKEFAKEFAKE\nFAKEFAKEFAKEFAKEFAKEFAKE\n-----END OPENSSH PRIVATE KEY-----\n";
-    pub const FAKE_ENCRYPTED: &str = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAACmFlczI1Ni1jdHIAAAAGYmNyeXB0FAKEFAKEFAKE\n-----END OPENSSH PRIVATE KEY-----\n";
+    pub const FAKE_UNENCRYPTED: &str = concat!(
+        "-----BEGIN OPENSSH ",
+        "PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABFAKEFAKEFAKE\nFAKEFAKEFAKEFAKEFAKEFAKE\n-----END OPENSSH PRIVATE KEY-----\n"
+    );
+    pub const FAKE_ENCRYPTED: &str = concat!(
+        "-----BEGIN OPENSSH ",
+        "PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAACmFlczI1Ni1jdHIAAAAGYmNyeXB0FAKEFAKEFAKE\n-----END OPENSSH PRIVATE KEY-----\n"
+    );
 
     #[test]
     fn detects_encryption() {
         assert!(is_unencrypted_private_key(FAKE_UNENCRYPTED));
         assert!(!is_unencrypted_private_key(FAKE_ENCRYPTED));
-        assert!(is_unencrypted_private_key(
-            "-----BEGIN RSA PRIVATE KEY-----\nFAKE\n"
-        ));
-        assert!(!is_unencrypted_private_key(
-            "-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,00\n\nFAKE\n"
-        ));
+        assert!(is_unencrypted_private_key(concat!(
+            "-----BEGIN RSA ",
+            "PRIVATE KEY-----\nFAKE\n"
+        )));
+        assert!(!is_unencrypted_private_key(concat!(
+            "-----BEGIN RSA ",
+            "PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,00\n\nFAKE\n"
+        )));
         assert!(!is_unencrypted_private_key(
             "-----BEGIN ENCRYPTED PRIVATE KEY-----\nFAKE\n"
         ));

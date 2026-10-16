@@ -17,5 +17,5 @@ require. Rules are never taken from AGPL or CC-BY-SA sources.
 Test fixtures
 
 Every credential under tests/fixtures is fake: the AWS key is the example
-key from AWS documentation (AKIAIOSFODNN7EXAMPLE), and the rest are real
-token prefixes followed by the filler "FAKE". None of them work anywhere.
+access key from the AWS documentation, and the rest are real token prefixes
+followed by the filler "FAKE". None of them work anywhere.

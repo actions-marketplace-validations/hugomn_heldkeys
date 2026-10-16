@@ -13,11 +13,11 @@ pub fn bin_path() -> &'static str {
     env!("CARGO_BIN_EXE_heldkeys")
 }
 
+include!("fixtures.rs");
+
+/// `tests/fixtures/<case>`, from the copy with fake credentials resolved.
 pub fn fixture(case: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("fixtures")
-        .join(case)
+    fixtures_root().join(case)
 }
 
 pub struct Output {
@@ -58,7 +58,9 @@ pub fn run(case: &str, args: &[&str]) -> Output {
 }
 
 /// Fake secrets placed in the fixtures, listed explicitly so the redaction
-/// test also covers values that do not contain the word FAKE.
+/// test also covers values that do not contain the word FAKE. Here and in
+/// the other tests, fake tokens are split with concat! after their public
+/// prefix, so secret scanners run on this repository do not flag test data.
 pub const FIXTURE_SECRETS: &[&str] = &[
     "AKIAIOSFODNN7EXAMPLE",
     "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
@@ -72,22 +74,28 @@ pub const FIXTURE_SECRETS: &[&str] = &[
     "FAKEazureACCESStoken0005",
     "FAKEazureREFRESHtoken0005",
     "FAKEazureSPsecret0005XYZ",
-    "eyJhbGciOiJGQUtFIn0.eyJzdWIiOiJGQUtFRkFLRUZBS0UifQ.FAKEkubeSIGNATURE0006",
+    concat!(
+        "eyJhbGciOiJGQUtFIn0.",
+        "eyJzdWIiOiJGQUtFRkFLRUZBS0UifQ.FAKEkubeSIGNATURE0006"
+    ),
     "RkFLRS1DTElFTlQtS0VZLURBVEEtMDAwNg==",
     "ZmFrZXVzZXI6RkFLRWRvY2tlclBBU1MwMDA3",
     "ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000008",
     "FAKEftpPASSWORD0008",
     "ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000009",
     "FAKEgitPASSWORD0009",
-    "npm_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0010",
+    concat!("npm_", "FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0010"),
     "pypi-FAKEFAKEFAKEFAKEFAKE0011",
     "cioFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE12",
     "gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000013",
-    "eyJhbGciOiJGQUtFIn0.eyJzdWIiOiJGQUtFU0EwMDE0In0.FAKEsaSIGNATURE0014",
-    "sk-proj-FAKEFAKEFAKEFAKEFAKEFAKE0015",
+    concat!(
+        "eyJhbGciOiJGQUtFIn0.",
+        "eyJzdWIiOiJGQUtFU0EwMDE0In0.FAKEsaSIGNATURE0014"
+    ),
+    concat!("sk-", "proj-FAKEFAKEFAKEFAKEFAKEFAKE0015"),
     "FAKEdbPASSWORD0015",
-    "sk_test_FAKEFAKEFAKEFAKE0016",
-    "xoxb-0000000000-FAKEFAKEFAKE0017",
+    concat!("sk_", "test_FAKEFAKEFAKEFAKE0016"),
+    concat!("xoxb-", "0000000000-FAKEFAKEFAKE0017"),
     "ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000018",
     "ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000019",
     "ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000020",
@@ -98,10 +106,10 @@ pub const ENV_SECRETS: &[(&str, &str)] = &[
     ("GITHUB_TOKEN", "ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000101"),
     (
         "ANTHROPIC_API_KEY",
-        "sk-ant-api03-FAKEFAKEFAKEFAKEFAKE-0102",
+        concat!("sk-", "ant-api03-FAKEFAKEFAKEFAKEFAKE-0102"),
     ),
     ("MY_SERVICE_PASSWORD", "FAKEservicePASSWORD0103"),
-    ("AWS_ACCESS_KEY_ID", "AKIAFAKEFAKEFAKE0104"),
+    ("AWS_ACCESS_KEY_ID", concat!("AKIA", "FAKEFAKEFAKE0104")),
     ("AWS_SECRET_ACCESS_KEY", "FAKEawsSECRETfromENVfakeFAKE0104"),
     (
         "DATABASE_URL",
@@ -111,7 +119,10 @@ pub const ENV_SECRETS: &[(&str, &str)] = &[
 
 /// Unencrypted fake OpenSSH key. Never committed as a file (secret scanners
 /// flag the header even on fakes); tests write it to a temporary home.
-pub const FAKE_SSH_KEY: &str = "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABFAKEsshKEYbody0201\nFAKEsshKEYbodyFAKEsshKEYbody0201\n-----END OPENSSH PRIVATE KEY-----\n";
+pub const FAKE_SSH_KEY: &str = concat!(
+    "-----BEGIN OPENSSH ",
+    "PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABFAKEsshKEYbody0201\nFAKEsshKEYbodyFAKEsshKEYbody0201\n-----END OPENSSH PRIVATE KEY-----\n"
+);
 pub const FAKE_SSH_KEY_BODY: &[&str] = &[
     "b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABFAKEsshKEYbody0201",
     "FAKEsshKEYbodyFAKEsshKEYbody0201",

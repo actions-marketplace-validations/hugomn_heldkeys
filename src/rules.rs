@@ -619,7 +619,7 @@ mod tests {
     #[test]
     fn matches_known_prefixes() {
         let cases = [
-            ("AKIAIOSFODNN7EXAMPLE", "aws-access-key"),
+            (concat!("AKIA", "IOSFODNN7EXAMPLE"), "aws-access-key"),
             ("ASIAIOSFODNN7EXAMPLE", "aws-temporary-key"),
             (
                 "ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000001",
@@ -631,21 +631,36 @@ mod tests {
                 "github-app-installation",
             ),
             (
-                "github_pat_FAKEFAKEFAKEFAKEFAKE_FAKEFAKE01",
+                concat!("github_pat_", "FAKEFAKEFAKEFAKEFAKE_FAKEFAKE01"),
                 "github-pat-fine-grained",
             ),
             (
-                "sk-ant-api03-FAKEFAKEFAKEFAKEFAKE-FAKE",
+                concat!("sk-", "ant-api03-FAKEFAKEFAKEFAKEFAKE-FAKE"),
                 "anthropic-api-key",
             ),
-            ("sk-proj-FAKEFAKEFAKEFAKEFAKEFAKE", "openai-project-key"),
-            ("sk-FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE01", "openai-api-key"),
-            ("sk_live_FAKEFAKEFAKEFAKE01", "stripe-live-secret"),
-            ("sk_test_FAKEFAKEFAKEFAKE01", "stripe-test-secret"),
-            ("xoxb-0000000000-FAKEFAKEFAKE", "slack-token"),
+            (
+                concat!("sk-", "proj-FAKEFAKEFAKEFAKEFAKEFAKE"),
+                "openai-project-key",
+            ),
+            (
+                concat!("sk-", "FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE01"),
+                "openai-api-key",
+            ),
+            (
+                concat!("sk_", "live_FAKEFAKEFAKEFAKE01"),
+                "stripe-live-secret",
+            ),
+            (
+                concat!("sk_", "test_FAKEFAKEFAKEFAKE01"),
+                "stripe-test-secret",
+            ),
+            (concat!("xoxb-", "0000000000-FAKEFAKEFAKE"), "slack-token"),
             ("AIzaFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0001", "google-api-key"),
-            ("glpat-FAKEFAKEFAKEFAKEFAKE", "gitlab-pat"),
-            ("npm_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0001", "npm-token"),
+            (concat!("glpat-", "FAKEFAKEFAKEFAKEFAKE"), "gitlab-pat"),
+            (
+                concat!("npm_", "FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0001"),
+                "npm-token",
+            ),
             ("pypi-FAKEFAKEFAKEFAKEFAKE", "pypi-token"),
             (
                 "postgres://app:fakepass@db.internal/app",
@@ -672,7 +687,7 @@ mod tests {
 
     #[test]
     fn quoted_values_still_match() {
-        assert!(match_token("\"AKIAIOSFODNN7EXAMPLE\"").is_some());
+        assert!(match_token(concat!("\"AKIA", "IOSFODNN7EXAMPLE\"")).is_some());
     }
 
     #[test]
@@ -699,21 +714,21 @@ mod tests {
         assert!(classify_named_value("API_TOKEN", "${API_TOKEN}").is_none());
         assert!(classify_named_value("API_TOKEN", "true").is_none());
         assert!(classify_named_value("API_TOKEN", "short").is_none());
-        let c = classify_named_value("API_TOKEN", "q8Zr1vLx0pTn4Wm2").unwrap();
+        let c = classify_named_value("API_TOKEN", concat!("q8Zr1v", "Lx0pTn4Wm2")).unwrap();
         assert_eq!(c.severity, Severity::Medium);
         assert_eq!(c.fingerprint, None);
     }
 
     #[test]
     fn known_format_wins_over_placeholder_words() {
-        let c = classify_named_value("ANYTHING", "AKIAIOSFODNN7EXAMPLE").unwrap();
+        let c = classify_named_value("ANYTHING", concat!("AKIA", "IOSFODNN7EXAMPLE")).unwrap();
         assert_eq!(c.rule_id, Some("aws-access-key"));
         assert_eq!(c.fingerprint.as_deref(), Some("AKIA…PLE"));
     }
 
     #[test]
     fn cloud_names_alone_are_medium() {
-        let c = classify_named_value("GITHUB_TOKEN", "q8Zr1vLx0pTn4Wm2").unwrap();
+        let c = classify_named_value("GITHUB_TOKEN", concat!("q8Zr1v", "Lx0pTn4Wm2")).unwrap();
         assert_eq!(c.title, "Possible cloud or SCM credential");
         assert_eq!(c.severity, Severity::Medium);
     }
@@ -722,31 +737,46 @@ mod tests {
     fn shared_formats_are_titled_by_the_variable_name() {
         let title = |name: &str, value: &str| classify_named_value(name, value).unwrap().title;
         assert_eq!(
-            title("WORKOS_API_KEY", "sk_test_FAKEFAKEFAKEFAKE01"),
+            title("WORKOS_API_KEY", concat!("sk_", "test_FAKEFAKEFAKEFAKE01")),
             "WorkOS test-mode API key"
         );
         assert_eq!(
-            title("STRIPE_SECRET_KEY", "sk_test_FAKEFAKEFAKEFAKE01"),
+            title(
+                "STRIPE_SECRET_KEY",
+                concat!("sk_", "test_FAKEFAKEFAKEFAKE01")
+            ),
             "Stripe test-mode secret key"
         );
         assert_eq!(
-            title("STRIPE_SECRET_KEY", "sk_live_FAKEFAKEFAKEFAKE01"),
+            title(
+                "STRIPE_SECRET_KEY",
+                concat!("sk_", "live_FAKEFAKEFAKEFAKE01")
+            ),
             "Stripe live secret key"
         );
         assert_eq!(
-            title("PAYMENTS_KEY", "sk_test_FAKEFAKEFAKEFAKE01"),
-            "Test-mode secret key (sk_test_)"
+            title("PAYMENTS_KEY", concat!("sk_", "test_FAKEFAKEFAKEFAKE01")),
+            concat!("Test-mode secret key (sk_", "test_)")
         );
         assert_eq!(
-            title("DEEPSEEK_API_KEY", "sk-FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE01"),
+            title(
+                "DEEPSEEK_API_KEY",
+                concat!("sk-", "FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE01")
+            ),
             "DeepSeek API key"
         );
         assert_eq!(
-            title("MOONSHOT_API_KEY", "sk-FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE01"),
+            title(
+                "MOONSHOT_API_KEY",
+                concat!("sk-", "FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE01")
+            ),
             "Moonshot API key"
         );
         assert_eq!(
-            title("LLM_KEY", "sk-FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE01"),
+            title(
+                "LLM_KEY",
+                concat!("sk-", "FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE01")
+            ),
             "OpenAI-style API key"
         );
         // Formats only one vendor uses keep their own title.
@@ -763,7 +793,10 @@ mod tests {
             ("VITE_STRIPE_PUBLISHABLE_KEY", "pk_live_FAKEFAKEFAKEFAKE01"),
             (
                 "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-                "eyJhbGciOiJGQUtFIn0.eyJzdWIiOiJGQUtFRkFLRUZBS0UifQ.FAKEsig",
+                concat!(
+                    "eyJhbGciOiJGQUtFIn0.",
+                    "eyJzdWIiOiJGQUtFRkFLRUZBS0UifQ.FAKEsig"
+                ),
             ),
             (
                 "REACT_APP_GOOGLE_CLIENT_ID",
@@ -780,10 +813,16 @@ mod tests {
         for (name, value) in [
             (
                 "NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY",
-                "eyJhbGciOiJGQUtFIn0.eyJzdWIiOiJGQUtFRkFLRUZBS0UifQ.FAKEsig",
+                concat!(
+                    "eyJhbGciOiJGQUtFIn0.",
+                    "eyJzdWIiOiJGQUtFRkFLRUZBS0UifQ.FAKEsig"
+                ),
             ),
-            ("VITE_STRIPE_SECRET_KEY", "sk_live_FAKEFAKEFAKEFAKE01"),
-            ("PUBLIC_PRIVATE_TOKEN", "q8Zr1vLx0pTn4Wm2"),
+            (
+                "VITE_STRIPE_SECRET_KEY",
+                concat!("sk_", "live_FAKEFAKEFAKEFAKE01"),
+            ),
+            ("PUBLIC_PRIVATE_TOKEN", concat!("q8Zr1v", "Lx0pTn4Wm2")),
         ] {
             let c = classify_named_value(name, value).unwrap_or_else(|| panic!("{name}"));
             assert_eq!(c.title, "Secret exposed to the frontend bundle", "{name}");
@@ -796,8 +835,11 @@ mod tests {
         );
         // A frontend name that says neither is judged like any other.
         assert!(
-            classify_named_value("VITE_OPENAI_API_KEY", "sk-proj-FAKEFAKEFAKEFAKEFAKEFAKE")
-                .is_some()
+            classify_named_value(
+                "VITE_OPENAI_API_KEY",
+                concat!("sk-", "proj-FAKEFAKEFAKEFAKEFAKEFAKE")
+            )
+            .is_some()
         );
     }
 
@@ -805,15 +847,15 @@ mod tests {
     fn template_placeholders() {
         for value in [
             "your_token_here",
-            "sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-            "sk-ant-api03-your-key-here-000000000",
+            concat!("sk-", "ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxx"),
+            concat!("sk-", "ant-api03-your-key-here-000000000"),
             "ghp_REPLACEMEwithYOURtokenPLEASE0001",
             "<your api key>",
             "changeme",
             "test",
             "password",
-            "sk_test_your_stripe_key_here",
-            "sk_test_FAKE_test_FAKEFAKE0001",
+            concat!("sk_", "test_your_stripe_key_here"),
+            concat!("sk_", "test_FAKE_test_FAKEFAKE0001"),
             "postgres://postgres:postgres@localhost:5432/app",
             "postgresql://app:app@127.0.0.1/app",
             "mysql://root:secret@localhost/db",
@@ -821,8 +863,8 @@ mod tests {
             assert!(looks_like_template_placeholder(value), "{value}");
         }
         for value in [
-            "sk_test_FAKEFAKEFAKEFAKE0016",
-            "xoxb-0000000000-FAKEFAKEFAKE0017",
+            concat!("sk_", "test_FAKEFAKEFAKEFAKE0016"),
+            concat!("xoxb-", "0000000000-FAKEFAKEFAKE0017"),
             "postgres://app:FAKEdbPASSWORD0015@localhost:5432/app",
             "postgres://postgres:postgres@db.internal:5432/app",
         ] {

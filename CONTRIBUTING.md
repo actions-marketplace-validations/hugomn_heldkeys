@@ -30,11 +30,13 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
-To try the binary safely:
+To try the binary safely, on a copy of the fixtures with their fake credentials resolved (see step 5 below):
 
 ```sh
+F="$(mktemp -d)" && cp -R tests/fixtures/. "$F" && \
+  find "$F" -type f -exec perl -pi -e 's/\{\{fake:([^}|]*)\|?([^}]*)\}\}/$1$2/g' {} +
 env -i HELDKEYS_NO_NET=1 PATH="$PATH" cargo run -q -- \
-  --home tests/fixtures/full --root tests/fixtures/full --path tests/fixtures/project
+  --home "$F/full" --root "$F/full" --path "$F/project"
 ```
 
 ## Adding a check
@@ -45,7 +47,7 @@ A check is one file in `src/checks/`, plus a fixture, tests and a docs page. `sr
 2. **Declare the rules.** Each kind of finding gets a `Rule` const with a stable id `HK-<AREA>-<NNN>` and a one-line summary, listed in `rules()`. Pass the matching const to `Finding::new`. A released id never changes meaning; if the meaning changes, add a new id.
 3. **Pick severity, lifetime and access** with the rule of thumb in `src/finding.rs`, and write a one-line `fix` that a person can act on.
 4. **Register it.** Add `pub mod <name>;` and the check to `local_checks()` or `ci_checks()` in `src/checks/mod.rs`. The registry tests then verify that its rule ids are unique and well formed, and that every finding uses a declared rule.
-5. **Add a fixture.** Put fake credentials under `tests/fixtures/<case>/`. Use AWS's documented example key (`AKIAIOSFODNN7EXAMPLE`) or a real token prefix followed by obvious filler such as `FAKE`. Never commit anything that works. `.env` files in `tests/fixtures/project` are ignored on purpose, so add them with `git add -f`. Do not commit private keys, even fake ones: write them to a temporary directory in the test, as `tests/common` does.
+5. **Add a fixture.** Put fake credentials under `tests/fixtures/<case>/`. Use AWS's documented example key (`AKIAIOSFODNN7EXAMPLE`) or a real token prefix followed by obvious filler such as `FAKE`. Never commit anything that works. Write each fake credential as `{{fake:PREFIX|REST}}`, for example `{{fake:sk-|proj-FAKEFAKEFAKEFAKEFAKEFAKE0042}}`, with the `|` right after the token's public prefix if it has one. The tests read a copy of `tests/fixtures` in which every marker is replaced by `PREFIXREST`, so secret scanners run on this repository do not flag test data. In Rust code, split fake tokens the same way with `concat!("sk-", "proj-FAKE...")`. `.env` files in `tests/fixtures/project` are ignored on purpose, so add them with `git add -f`. Do not commit private keys, even fake ones: write them to a temporary directory in the test, as `tests/common` does.
 6. **Test it.** Unit tests go at the bottom of the check's file (see `checks::testutil`). If you added new fake secrets, list them in `FIXTURE_SECRETS` in `tests/common/mod.rs` so the redaction test looks for them in every output format.
 7. **Document it.** Add `docs/rules/<ID>.md` for each new rule, following the template in [docs/rules/README.md](docs/rules/README.md), and add a row to the rule tables in `docs/rules/README.md` and the README.
 

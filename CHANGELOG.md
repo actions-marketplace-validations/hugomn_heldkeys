@@ -7,6 +7,13 @@ public interface: a released id never changes meaning.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-10-16
+
+### Changed
+
+- Fake test credentials are no longer committed as complete tokens: fixtures in `tests/fixtures` use `{{fake:...}}` markers that the tests resolve when they copy them, and Rust tests split each token after its prefix, so secret scanners such as gitleaks report nothing on the repository.
+- CI runs gitleaks on the tracked files.
+
 ## [0.2.2] - 2026-10-16
 
 ### Changed
@@ -117,7 +124,8 @@ heldkeys treats everything it scans as untrusted: a pull request controls its wo
 
 Published to crates.io early to reserve the name, and yanked. Use 0.1.1.
 
-[Unreleased]: https://github.com/hugomn/heldkeys/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/hugomn/heldkeys/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/hugomn/heldkeys/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/hugomn/heldkeys/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/hugomn/heldkeys/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/hugomn/heldkeys/compare/v0.1.1...v0.2.0

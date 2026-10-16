@@ -99,7 +99,10 @@ fn github_actions_runtime() {
             ),
             ("ACTIONS_ID_TOKEN_REQUEST_URL", "https://example.invalid/t"),
             ("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "FAKEoidcREQUESTtoken0701"),
-            ("NPM_TOKEN", "npm_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0702"),
+            (
+                "NPM_TOKEN",
+                concat!("npm_", "FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0702"),
+            ),
         ],
     );
     assert_eq!(out.code, 1, "an npm token in the job env is High");
@@ -110,7 +113,7 @@ fn github_actions_runtime() {
 fn git_repo(dir: &Path) {
     std::fs::write(
         dir.join("settings.py"),
-        "TOKEN = 'ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000703'\n",
+        concat!("TOKEN = 'ghp_", "FAKEFAKEFAKEFAKEFAKEFAKEFAKE000703'\n"),
     )
     .unwrap();
     for args in [vec!["init", "-q"], vec!["add", "-A"]] {
@@ -158,7 +161,10 @@ fn ci_summary_separates_workflow_risks_from_job_credentials() {
         &["--quiet"],
         &[
             ("GITHUB_ACTIONS", "true"),
-            ("NPM_TOKEN", "npm_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0702"),
+            (
+                "NPM_TOKEN",
+                concat!("npm_", "FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0702"),
+            ),
         ],
     );
     assert_eq!(

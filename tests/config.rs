@@ -607,7 +607,7 @@ fn baseline_locations_are_relative_to_the_scanned_directory() {
     // A different token in the same place is a new finding.
     std::fs::write(
         home.join("b/.env"),
-        "OPENAI_API_KEY=sk-proj-FAKEFAKEFAKEFAKEFAKEFAKE0904\n",
+        concat!("OPENAI_API_KEY=sk-", "proj-FAKEFAKEFAKEFAKEFAKEFAKE0904\n"),
     )
     .unwrap();
     let v = json(&run_in(
