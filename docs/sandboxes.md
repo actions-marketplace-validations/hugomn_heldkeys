@@ -7,7 +7,7 @@ So every recipe on this page does the same three things: get the static binary i
 - **`heldkeys preflight`** is for start hooks and entrypoints. It prints one line (`heldkeys preflight: PASS, ...` or `heldkeys preflight: FAIL, 3 high-severity credentials reachable (2 long-lived with write access)`), lists what caused a failure (most urgent first, machine-wide credentials before project files, at most 10 lines unless you add `--details`), and exits 1 when a finding reaches `--fail-on` (default `high`). Use `--fail-on long-lived-write` for the narrowest policy ("never start an agent that holds a long-lived write credential"), or `medium` for a stricter one. With `--format json`, stdout is the full report with a `preflight` object added, and the verdict line goes to stderr.
 - **`heldkeys scan --docker <container>` / `--kube <pod>`** is for checking something that is already running, from outside.
 
-Get a Linux binary first: see [building.md](building.md) for `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl` builds. The snippets below call it `heldkeys-linux-x86_64`; use the aarch64 build on ARM hosts.
+Get a Linux binary first: the `heldkeys` binary from the release archive `heldkeys-x86_64-unknown-linux-musl.tar.xz` (or `heldkeys-aarch64-unknown-linux-musl.tar.xz` on ARM hosts), or your own build from [building.md](building.md). The snippets below assume you saved it as `heldkeys-linux-x86_64`.
 
 Exit codes everywhere: `0` nothing reached the threshold, `1` something did, `2` usage or runtime error. Treat `2` as a failure too, or a broken check will quietly let everything through.
 
@@ -47,7 +47,7 @@ CMD ["your-agent", "--its-flags"]
 
 `exec "$@"` hands PID 1 to the agent, so signals still reach it. Images without a shell (distroless, scratch) cannot chain commands like this; run `heldkeys preflight` as a separate step in whatever starts the container instead, or use `scan --docker` below.
 
-Credentials passed with `docker run -e`, `--env-file`, mounted volumes (`-v ~/.aws:/root/.aws`) and a mounted Docker socket are all visible to the entrypoint, which is exactly why it runs there.
+Credentials passed with `docker run -e`, `--env-file`, mounted volumes (`-v ~/.aws:/root/.aws`) and a mounted Docker socket are all visible to the entrypoint, so the entrypoint is the right place to check.
 
 ### Devcontainers
 
@@ -106,7 +106,7 @@ spec:
       emptyDir: {}
   initContainers:
     - name: heldkeys-install
-      image: your-registry/heldkeys:0.2.1     # any image that contains the static binary
+      image: your-registry/heldkeys:0.2.2     # any image that contains the static binary
       command: ["cp", "/usr/local/bin/heldkeys", "/heldkeys/heldkeys"]
       volumeMounts:
         - { name: heldkeys, mountPath: /heldkeys }
@@ -118,7 +118,7 @@ spec:
         - { name: heldkeys, mountPath: /heldkeys, readOnly: true }
 ```
 
-A failing preflight makes the container exit with status 1, so the pod goes into `CrashLoopBackOff` and `kubectl logs` shows the verdict line. That is the point: the agent never runs with a credential the policy forbids. The `k8s-service-account` check will tell you if the pod still has an automounted service account token; set `automountServiceAccountToken: false` on agent pods that do not need the API.
+A failing preflight makes the container exit with status 1, so the pod goes into `CrashLoopBackOff` and `kubectl logs` shows the verdict line, so the agent never starts with a credential the policy forbids. The `k8s-service-account` check will tell you if the pod still has an automounted service account token; set `automountServiceAccountToken: false` on agent pods that do not need the API.
 
 ### Checking a running pod from outside
 
@@ -270,4 +270,4 @@ What changes compared to your terminal:
 
 The [`heldkeys` agent skill](../skill/heldkeys/SKILL.md) packages this: it tells the agent how to run the scan, how to summarise it without ever printing a secret, and how to suggest fixes. Install it where your agent loads skills, for example `~/.claude/skills/heldkeys/SKILL.md` for Claude Code (or `.claude/skills/` in a project), and the equivalent skills directory for Codex (**check the Codex docs** for the current location).
 
-If the result through the agent is much shorter than in your terminal, the sandbox is doing its job. If it is the same, the agent can reach everything you can.
+A shorter list through the agent means its sandbox hides some credentials from it; the same list means it hides none.

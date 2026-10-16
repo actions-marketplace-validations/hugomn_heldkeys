@@ -123,7 +123,7 @@ pub static TOKEN_RULES: &[TokenRule] = &[
     TokenRule {
         id: "url-with-password",
         title: "Connection string with embedded password",
-        // scheme://user:password@host — the password part must be non-empty.
+        // scheme://user:password@host; the password part must be non-empty.
         pattern: r"[A-Za-z][A-Za-z0-9+.\-]*://[^/\s:@]+:[^/\s@]+@[^\s]+",
         severity: High,
         lifetime: LongLived,

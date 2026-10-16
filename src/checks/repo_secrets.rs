@@ -338,7 +338,7 @@ mod tests {
         assert!(is_example_url("postgres://user:password@localhost/db"));
         assert!(is_example_url("redis://:${REDIS_PASSWORD}@cache:6379"));
         assert!(!is_example_url(
-            "postgres://app:Zq8rT1vLx0pW@db.internal/app"
+            "postgres://app:FAKErT1vLx0pW@db.internal/app"
         ));
     }
 }

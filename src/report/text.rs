@@ -1,23 +1,23 @@
 //! Text output for terminals.
 //!
-//! The default view is a summary someone reads in twenty seconds:
+//! The default view is a short summary:
 //!
 //! ```text
-//! heldkeys: 277 credentials reachable from ~/workspace (53 long-lived with write access)
+//! heldkeys: 13 credentials reachable from ~/code/app (4 long-lived with write access)
 //!
 //! Fix these first
-//!   HIGH    Long-lived AWS access key   ~/.aws/credentials [work]            AKIA…PLE
-//!   HIGH    Anthropic API key           ./webapp/apps/api/.env: ANTHROPI…  sk-a…KE1  ×4
+//!   HIGH    Long-lived AWS access key   ~/.aws/credentials [default]   AKIA…PLE
+//!   HIGH    Anthropic API key           ./api/.env: ANTHROPI…          sk-a…KE1  ×2
 //!
 //! Where they are                                   high  medium   low
-//!   Cloud CLIs (AWS, gcloud, Azure, kube)             3       2     -
-//!   Project .env files                               98     143     -  241 in 58 files across 25 repos
+//!   Cloud CLIs (AWS, gcloud, Azure, kube)             1       2     -
+//!   Project .env files                                2       4     -  6 in 3 files across 2 repos
 //!
 //! Same secret in several places
-//!   Anthropic API key sk-a…KE1 in 4 files (./webapp/apps/api/.env, +3)
+//!   Anthropic API key sk-a…KE1 in 2 files (./api/.env, +1)
 //!
 //! Next steps
-//!   1. Move secrets out of 58 .env files into a secret manager, or run agents where ...
+//!   1. Move secrets out of 3 .env files into a secret manager, or run agents where ...
 //! ```
 //!
 //! followed by a pointer to `--details` and the summary line, which stays
@@ -33,7 +33,7 @@
 //! and file, and with `--details` every finding it left out.
 //!
 //! Lines fit `TextOptions::width`. Paths are cut in the middle when they do
-//! not fit (`~/workspace/acme…/apps/web/.env`); fingerprints never are.
+//! not fit (`~/code/acme…/apps/web/.env`); fingerprints never are.
 
 use owo_colors::{OwoColorize, Style};
 
@@ -147,8 +147,8 @@ impl Out {
     }
 }
 
-/// "heldkeys: 277 credentials reachable from ~/workspace (53 long-lived
-/// with write access)", or the CI verdict.
+/// "heldkeys: 13 credentials reachable from ~/code/app (4 long-lived with
+/// write access)", or the CI verdict.
 fn header(report: &Report, width: usize) -> String {
     let s = report.summary();
     match report.mode {
@@ -727,7 +727,7 @@ fn tag(severity: Severity) -> &'static str {
 }
 
 /// A location as shown: under the scanned directory, relative to it
-/// (`./webapp/.env` rather than `~/workspace/webapp/.env`), unless that
+/// (`./shop/.env` rather than `~/code/shop/.env`), unless that
 /// directory is the home directory or the root, where `~/` reads better.
 fn shown_location(report: &Report, location: &str) -> String {
     if let Some(origin) = report.origin.as_deref()
@@ -743,7 +743,7 @@ fn shown_location(report: &Report, location: &str) -> String {
 /// Fits a location in `max` characters. A short file path stays whole and
 /// the middle of the place in it goes (`~/.docker/config.json (https:…/v1/)`);
 /// a long path loses its middle first, so the place in the file (a
-/// variable, a profile) stays whole (`~/workspace…/api/.env: OPENAI_API_KEY`).
+/// variable, a profile) stays whole (`~/code…/api/.env: OPENAI_API_KEY`).
 fn fit_location(location: &str, max: usize) -> String {
     if location.chars().count() <= max {
         return location.to_string();
@@ -752,6 +752,19 @@ fn fit_location(location: &str, max: usize) -> String {
         && let Some(rest) = location.strip_prefix(file)
         && !rest.is_empty()
     {
+        // A workflow step that does not fit keeps its line and the action it
+        // uses (`triage.yml:23 claude-code-action@v1`); the job and step
+        // index are in --details.
+        if let Some(step) = compact_step(rest) {
+            let step_len = step.chars().count();
+            if file.chars().count() + step_len <= max {
+                return format!("{file}{step}");
+            }
+            let short = short_path(file);
+            if short.chars().count() + step_len <= max {
+                return format!("{short}{step}");
+            }
+        }
         let file_len = file.chars().count();
         if file_len <= max * 2 / 3 && max - file_len >= 8 {
             return format!("{file}{}", middle_truncate(rest, max - file_len));
@@ -767,6 +780,29 @@ fn fit_location(location: &str, max: usize) -> String {
         }
     }
     middle_truncate(location, max)
+}
+
+/// `:23 jobs.triage.steps[1] (uses: anthropics/claude-code-action@v1)`
+/// becomes `:23 claude-code-action@v1`. Anything else gives `None`.
+fn compact_step(rest: &str) -> Option<String> {
+    let after_colon = rest.strip_prefix(':')?;
+    let (line, tail) = after_colon.split_once(' ')?;
+    if line.is_empty() || !line.chars().all(|c| c.is_ascii_digit()) || !tail.starts_with("jobs.") {
+        return None;
+    }
+    let uses = tail.split_once(" (uses: ")?.1.strip_suffix(')')?;
+    let action = uses.rsplit('/').next().filter(|a| !a.is_empty())?;
+    Some(format!(":{line} {action}"))
+}
+
+/// `.github/workflows/triage.yml` becomes `.github/…/triage.yml`: the first
+/// and last parts of a path with directories in between.
+fn short_path(path: &str) -> String {
+    let parts: Vec<&str> = path.split('/').collect();
+    if parts.len() < 3 {
+        return path.to_string();
+    }
+    format!("{}/{CUT}/{}", parts[0], parts[parts.len() - 1])
 }
 
 /// Cuts `text` to `max` characters by replacing its middle with `…`,
@@ -1004,18 +1040,11 @@ mod tests {
     fn paths_under_the_scanned_directory_are_relative() {
         let report = Report::new(
             Mode::Scan,
-            vec![finding(
-                "Token",
-                "~/workspace/app/.env: TOKEN",
-                Severity::High,
-            )],
+            vec![finding("Token", "~/code/app/.env: TOKEN", Severity::High)],
         )
-        .with_origin("~/workspace");
-        assert_eq!(
-            shown_location(&report, "~/workspace/app/.env"),
-            "./app/.env"
-        );
-        assert_eq!(shown_location(&report, "~/workspace2/x"), "~/workspace2/x");
+        .with_origin("~/code");
+        assert_eq!(shown_location(&report, "~/code/app/.env"), "./app/.env");
+        assert_eq!(shown_location(&report, "~/code2/x"), "~/code2/x");
         assert_eq!(shown_location(&report, "~/.npmrc"), "~/.npmrc");
         let home = Report::new(Mode::Scan, vec![]).with_origin("~");
         assert_eq!(shown_location(&home, "~/.npmrc"), "~/.npmrc");
@@ -1058,30 +1087,33 @@ mod tests {
     fn locations_keep_their_most_useful_parts() {
         assert_eq!(
             fit_location(
-                "~/workspace/acme/webapp-wt-12/apps/api/.env: ANTHROPIC_API_KEY",
+                "~/projects/acme/storefront-wt-12/apps/api/.env: ANTHROPIC_API_KEY",
                 50
             ),
-            "~/workspac…-wt-12/apps/api/.env: ANTHROPIC_API_KEY"
+            "~/projects…-wt-12/apps/api/.env: ANTHROPIC_API_KEY"
         );
         let step = fit_location(
             ".github/workflows/triage.yml:23 jobs.triage.steps[1] (uses: anthropics/claude-code-action@v1)",
             50,
         );
-        assert!(
-            step.starts_with(".github/workflows/triage.yml:23"),
-            "{step}"
+        assert_eq!(step, ".github/…/triage.yml:23 claude-code-action@v1");
+        let wide = fit_location(
+            ".github/workflows/triage.yml:23 jobs.triage.steps[1] (uses: anthropics/claude-code-action@v1)",
+            60,
         );
-        assert!(step.ends_with("action@v1)"), "{step}");
-        assert_eq!(step.chars().count(), 50);
+        assert_eq!(
+            wide,
+            ".github/workflows/triage.yml:23 claude-code-action@v1"
+        );
     }
 
     #[test]
     fn middle_truncation() {
         assert_eq!(middle_truncate("short", 10), "short");
-        let cut = middle_truncate("~/workspace/acme/webapp-worktree/apps/web/.env", 30);
+        let cut = middle_truncate("~/projects/acme/storefront-worktree/apps/web/.env", 30);
         assert_eq!(cut.chars().count(), 30);
         assert!(
-            cut.starts_with("~/workspa") && cut.ends_with("apps/web/.env"),
+            cut.starts_with("~/project") && cut.ends_with("apps/web/.env"),
             "{cut}"
         );
     }

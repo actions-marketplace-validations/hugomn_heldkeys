@@ -10,7 +10,7 @@
 
 ## Why it matters for agents
 
-A CLI token reads every secret of every project and config the user can access, and can change them. It is a key to all the other keys.
+A CLI token reads every secret of every project and config the user can access, and can change them.
 
 ## How to fix
 

@@ -86,4 +86,4 @@ committed with `git add -f`. Do the same when adding new ones.
   is a workflow whose job id looks like a path (`fixtures-bot`), which a
   `path = "*fixtures*"` rule must not hide; `escalated/` is a workflow
   whose agent became High after a baseline (`base.json`) recorded it as
-  Medium. Tokens are numbered 09xx.
+  Medium. Tokens are numbered 11xx.

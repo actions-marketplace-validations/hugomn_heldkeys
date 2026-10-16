@@ -300,41 +300,57 @@ mod tests {
         );
     }
 
-    /// The reviewer's evasions: each script runs an agent, and each must be
-    /// found.
+    /// Shell constructs that hide an agent call: each script runs an agent,
+    /// and each must be found.
     #[test]
     fn agent_calls_behind_shell_syntax_are_found() {
         let cases: &[(&str, &str, &str)] = &[
             (
-                "h01",
+                "quoted heredoc",
                 "bash <<'SCRIPT'\nclaude -p \"fix\" --dangerously-skip-permissions\nSCRIPT",
                 "claude",
             ),
-            ("h02", "x=$((1<<EOF))\nclaude -p fix\necho done", "claude"),
-            ("h03", "sh -c 'codex exec --full-auto fix'", "codex"),
-            ("h04", "\\claude -p fix", "claude"),
-            ("h05", "command claude -p fix", "claude"),
-            ("h06", "timeout 600 claude -p fix", "claude"),
-            ("h07", "(claude -p fix)", "claude"),
-            ("h08", "if claude -p fix; then echo ok; fi", "claude"),
-            ("h09", "/usr/local/bin/claude -p fix", "claude"),
-            ("h10", "./node_modules/.bin/claude -p fix", "claude"),
             (
-                "h11",
+                "arith shift",
+                "x=$((1<<EOF))\nclaude -p fix\necho done",
+                "claude",
+            ),
+            ("sh -c", "sh -c 'codex exec --full-auto fix'", "codex"),
+            ("backslash", "\\claude -p fix", "claude"),
+            ("command", "command claude -p fix", "claude"),
+            ("timeout", "timeout 600 claude -p fix", "claude"),
+            ("subshell", "(claude -p fix)", "claude"),
+            ("if", "if claude -p fix; then echo ok; fi", "claude"),
+            ("abs path", "/usr/local/bin/claude -p fix", "claude"),
+            ("rel path", "./node_modules/.bin/claude -p fix", "claude"),
+            (
+                "npm exec",
                 "npm exec -- @anthropic-ai/claude-code -p fix",
                 "claude",
             ),
-            ("h12", "env ANTHROPIC_API_KEY=x claude -p fix", "claude"),
-            ("h13", "echo \"$(claude -p fix)\"", "claude"),
-            ("h14", "{ claude -p fix; }", "claude"),
+            ("env", "env ANTHROPIC_API_KEY=x claude -p fix", "claude"),
+            ("cmd subst", "echo \"$(claude -p fix)\"", "claude"),
+            ("group", "{ claude -p fix; }", "claude"),
             (
-                "h15",
+                "heredoc comment",
                 "cat <<EOF # comment\nhi\nEOF\nclaude -p fix",
                 "claude",
             ),
-            ("h16", "echo 'it'\"'\"'s' && claude -p fix", "claude"),
-            ("h17", "echo \\\"\nclaude -p fix\necho \\\"", "claude"),
-            ("h18", "echo \"unterminated\nclaude -p fix", "claude"),
+            (
+                "quote splice",
+                "echo 'it'\"'\"'s' && claude -p fix",
+                "claude",
+            ),
+            (
+                "escaped quotes",
+                "echo \\\"\nclaude -p fix\necho \\\"",
+                "claude",
+            ),
+            (
+                "unterminated quote",
+                "echo \"unterminated\nclaude -p fix",
+                "claude",
+            ),
             // More prefixes, wrappers and runners.
             ("while", "while ! claude -p fix; do sleep 1; done", "claude"),
             ("until", "until codex exec fix; do :; done", "codex"),

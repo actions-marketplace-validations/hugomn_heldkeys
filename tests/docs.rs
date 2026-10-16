@@ -102,7 +102,6 @@ fn markdown_files() -> Vec<PathBuf> {
         "CHANGELOG.md",
         "CONTRIBUTING.md",
         "SECURITY.md",
-        "SPEC.md",
     ]
     .iter()
     .map(|f| repo().join(f))

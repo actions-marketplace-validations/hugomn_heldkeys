@@ -301,7 +301,7 @@ fn hostile_config_end_to_end() {
             if *name == "markdown" {
                 assert_inert_markdown(&label, &out.stdout);
             }
-            assert!(!out.stdout.contains("FAKEcfgPASSWORD0903"), "{label}");
+            assert!(!out.stdout.contains("FAKEcfgPASSWORD1103"), "{label}");
             // The hostile reason did reach the report.
             assert!(out.stdout.contains("pwned"), "{label}: {}", out.stdout);
         }
@@ -309,9 +309,8 @@ fn hostile_config_end_to_end() {
 }
 
 /// Workflows built to make the analysis slow, or to flood the report with
-/// one huge name. Each used to take from 15 to 30 seconds and now runs in
-/// well under a second; the bound is generous for debug builds and busy
-/// machines.
+/// one huge name. Each must finish well under the bound below, which is
+/// generous for debug builds and busy machines.
 #[test]
 fn oversized_workflow_names_stay_fast_and_clipped() {
     let n = 200_000;

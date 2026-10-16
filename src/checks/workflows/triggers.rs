@@ -549,12 +549,12 @@ mod tests {
 
     #[test]
     fn many_matches_in_one_condition_stay_linear() {
-        // Every match sits inside a string literal, so each one was checked,
-        // and each check counted the quotes before it again.
+        // Every match sits inside a string literal, so each one is checked,
+        // and no check may count the quotes before it again.
         let cond = format!("'{}", "github.actor == 'a' ".repeat(50_000));
         let started = std::time::Instant::now();
         assert!(!is_actor_gate(&cond));
-        // 100 000 nested parentheses used to overflow the stack.
+        // 100 000 nested parentheses must not overflow the stack.
         let nested = format!(
             "{}github.actor == 'a'{}",
             "(".repeat(100_000),

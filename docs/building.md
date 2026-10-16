@@ -1,6 +1,6 @@
 # Building heldkeys
 
-heldkeys is meant to be dropped into places that have nothing installed: a container image, a hosted sandbox, a CI job. For Linux that means a **static musl binary**: one file, no libc, no runtime, no `HOME` needed, and it works on a read-only filesystem. This page explains how to build one. Nothing here is automated yet; release builds are prepared by hand.
+heldkeys is meant to be dropped into places that have nothing installed: a container image, a hosted sandbox, a CI job. For Linux that means a **static musl binary**: one file, no libc, no runtime, no `HOME` needed, and it works on a read-only filesystem. This page explains how to build one yourself. The release binaries are built by `.github/workflows/release.yml`.
 
 ## The usual build
 
@@ -20,7 +20,7 @@ Two targets cover nearly every container and sandbox:
 | `x86_64-unknown-linux-musl` | Intel/AMD Linux: most cloud VMs, E2B, Daytona, Modal, Vercel Sandbox, Cloudflare Sandbox, GitHub-hosted runners |
 | `aarch64-unknown-linux-musl` | ARM Linux: Graviton and Ampere VMs, Docker on Apple silicon (containers there are arm64 unless you ask for amd64) |
 
-The dependencies are all pure Rust (clap, regex, serde, serde_json, yaml-rust2, owo-colors): no OpenSSL, no C libraries. Rust's musl targets ship their own musl C runtime, so the only thing a build needs is a linker for the target.
+The dependencies are all pure Rust (clap, owo-colors, regex, serde, serde_json, toml, yaml-rust2): no OpenSSL, no C libraries. Rust's musl targets ship their own musl C runtime, so the only thing a build needs is a linker for the target.
 
 ### On a Linux machine of the same architecture
 
@@ -34,7 +34,7 @@ The system `cc` usually works as the linker. If the link step fails, install you
 
 ### Cross-compiling (from macOS, or for the other architecture)
 
-Pick one of these. Both are well-trodden; neither changes the code.
+Pick one of these. Either works.
 
 **cargo-zigbuild**, which uses Zig as a cross linker:
 

@@ -1065,7 +1065,11 @@ mod tests {
         );
         let token = find(&f, "HK-AI-006", "~/.cache/huggingface/token");
         assert_eq!(token.fingerprint.as_deref(), Some("hf_F…006"));
-        let stored = find(&f, "HK-AI-006", "~/.cache/huggingface/stored_tokens [work]");
+        let stored = find(
+            &f,
+            "HK-AI-006",
+            "~/.cache/huggingface/stored_tokens [personal]",
+        );
         // The same token in both files is one secret.
         assert_eq!(token.secret_key(), stored.secret_key());
     }

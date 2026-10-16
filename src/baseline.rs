@@ -39,7 +39,7 @@ pub struct Key {
 
 impl Key {
     /// The key of a finding at `location`, reported from `origin` (the
-    /// scanned directory as shown, such as `~/workspace`).
+    /// scanned directory as shown, such as `~/code`).
     pub fn new(rule: &str, location: &str, fingerprint: Option<&str>, origin: Option<&str>) -> Key {
         Key {
             rule: rule.to_string(),

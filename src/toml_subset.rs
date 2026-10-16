@@ -2,7 +2,10 @@
 //!
 //! Codex keeps MCP servers in `[mcp_servers.<name>]` tables with string
 //! values, arrays of strings and inline tables (`env = { KEY = "value" }`).
-//! That subset fits in one auditable file, so we do not add a TOML crate.
+//! The `toml` crate reads heldkeys' own `.heldkeys.toml`, where a syntax
+//! error must be refused. Scanned files need the opposite: this reader never
+//! fails and skips a line it cannot parse, so one odd line in a file someone
+//! else wrote does not hide the credentials after it.
 //!
 //! The result is a `serde_json::Value` tree, so the `mcp` check can walk
 //! Codex servers with the same code as the JSON-based clients.

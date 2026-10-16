@@ -68,12 +68,12 @@ fn big_home(root: &Path) -> (PathBuf, PathBuf) {
     write(
         &home.join(".aws/credentials"),
         &format!(
-            "[work-users]\naws_access_key_id = {AWS_KEY_ID}\naws_secret_access_key = {AWS_SECRET}\n"
+            "[deploy]\naws_access_key_id = {AWS_KEY_ID}\naws_secret_access_key = {AWS_SECRET}\n"
         ),
     );
     write(
         &home.join(".git-credentials"),
-        &format!("https://hugo:{GIT_GITHUB}@github.com\nhttps://hugo:{GIT_HF}@huggingface.co\n"),
+        &format!("https://alice:{GIT_GITHUB}@github.com\nhttps://alice:{GIT_HF}@huggingface.co\n"),
     );
     write(
         &home.join(".npmrc"),
@@ -85,7 +85,7 @@ fn big_home(root: &Path) -> (PathBuf, PathBuf) {
     );
     write(
         &home.join(".config/gh/hosts.yml"),
-        "github.com:\n    user: hugo\n    git_protocol: https\n",
+        "github.com:\n    user: alice\n    git_protocol: https\n",
     );
     write(
         &home.join(".gitconfig"),
@@ -112,18 +112,18 @@ fn big_home(root: &Path) -> (PathBuf, PathBuf) {
     // An empty VS Code MCP config: not an error.
     write(&home.join(".config/Code/User/mcp.json"), "");
 
-    let workspace = home.join("workspace");
+    let workspace = home.join("code");
     for i in 0..WORKTREES {
         let name = if i == 0 {
-            "webapp".to_string()
+            "shop".to_string()
         } else {
-            format!("webapp-wt-{i}")
+            format!("shop-wt-{i}")
         };
         let repo = workspace.join("acme").join(&name);
         if i == 0 {
             std::fs::create_dir_all(repo.join(".git")).unwrap();
         } else {
-            write(&repo.join(".git"), "gitdir: ../webapp/.git/worktrees/x\n");
+            write(&repo.join(".git"), "gitdir: ../shop/.git/worktrees/x\n");
         }
         // The same Anthropic key in 4 checkouts, a different one elsewhere.
         let anthropic = if i < 4 {
@@ -195,7 +195,7 @@ fn default_output_fits_a_screen() {
     assert!(credentials > 150, "{credentials}");
     assert!(
         lines[0].starts_with(&format!(
-            "heldkeys: {credentials} credentials reachable from ~/workspace ("
+            "heldkeys: {credentials} credentials reachable from ~/code ("
         )),
         "{}",
         lines[0]
@@ -214,12 +214,12 @@ fn default_output_fits_a_screen() {
     // Copies are collapsed into one line each.
     assert!(
         text.contains(&format!(
-            "Possible credential ADMIN_API_SECRET in {WORKTREES} files (./acme/webapp"
+            "Possible credential ADMIN_API_SECRET in {WORKTREES} files (./acme/shop"
         )),
         "{text}"
     );
     assert!(
-        text.contains("Anthropic API key sk-a…KE1 in 4 files (./acme/webapp"),
+        text.contains("Anthropic API key sk-a…KE1 in 4 files (./acme/shop"),
         "{text}"
     );
     assert!(
@@ -234,7 +234,7 @@ fn default_output_fits_a_screen() {
     let first = top.lines().next().unwrap();
     assert!(first.starts_with("  HIGH"), "{first}");
     assert!(!first.contains("./acme"), "{first}");
-    assert!(top.contains("~/.aws/credentials [work-users]"), "{text}");
+    assert!(top.contains("~/.aws/credentials [deploy]"), "{text}");
     // Generic next steps, not one per variable.
     let steps = text.split("Next steps\n").nth(1).unwrap();
     assert!(
@@ -293,7 +293,7 @@ fn details_list_every_finding() {
             assert!(line.chars().count() <= 120, "{line}");
         }
         // Each file is a heading once, relative to the scanned directory.
-        let heading = "  ./acme/webapp-wt-7/apps/api/.env";
+        let heading = "  ./acme/shop-wt-7/apps/api/.env";
         assert_eq!(text.lines().filter(|l| *l == heading).count(), 1, "{text}");
         assert!(
             text.contains("    LOW     WorkOS test-mode API key  WORKOS_API_KEY  sk_t…804  ×30"),
@@ -420,7 +420,7 @@ fn logins_and_history_copies_still_fit_a_screen() {
     let (home, cwd) = big_home(tmp.path());
     copy_dir(&fixture("logins/home"), &home);
     let env = format!("OPENAI_API_KEY={HISTORY_OPENAI}\nDATABASE_URL={HISTORY_DB}\n");
-    history_copies(&cwd.join("acme/webapp"), ".env", &env, HISTORY_COPIES);
+    history_copies(&cwd.join("acme/shop"), ".env", &env, HISTORY_COPIES);
     let text = scan(&home, &cwd, &["--no-color"]).stdout;
     let lines: Vec<&str> = text.lines().collect();
     assert!(lines.len() <= 60, "{} lines:\n{text}", lines.len());

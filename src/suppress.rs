@@ -150,7 +150,7 @@ pub fn apply(report: &mut Report, ignores: &[Ignore], baseline: Option<&Baseline
 
 /// A location as ignore rules and baselines compare it:
 ///
-/// - under the scanned directory (`origin`, such as `~/workspace`), relative
+/// - under the scanned directory (`origin`, such as `~/code`), relative
 ///   to it (`./app/.env: KEY`), so a baseline written on a laptop matches in
 ///   CI, where the checkout lives somewhere else;
 /// - without a line number after the file (`.github/workflows/a.yml:12 jobs...`
@@ -313,7 +313,7 @@ mod tests {
     fn locations_are_normalised() {
         let n = |l: &str| normalise_location(l, Some("~/work"));
         assert_eq!(n("~/work/app/.env: KEY"), "./app/.env: KEY");
-        assert_eq!(n("~/workspace/app/.env: KEY"), "~/workspace/app/.env: KEY");
+        assert_eq!(n("~/code/app/.env: KEY"), "~/code/app/.env: KEY");
         assert_eq!(
             n(".github/workflows/a.yml:12 jobs.x"),
             ".github/workflows/a.yml jobs.x"

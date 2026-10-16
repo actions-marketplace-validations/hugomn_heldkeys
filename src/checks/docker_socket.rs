@@ -99,7 +99,7 @@ fn can_connect(path: &Path) -> bool {
 
 #[cfg(not(unix))]
 fn can_connect(_path: &Path) -> bool {
-    // Windows named pipes are out of scope for v0.1.
+    // Windows named pipes are not supported.
     false
 }
 

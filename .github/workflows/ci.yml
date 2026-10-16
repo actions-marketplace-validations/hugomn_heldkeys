@@ -61,3 +61,36 @@ jobs:
           rustup toolchain install 1.88 --profile minimal
           rustup default 1.88
       - run: cargo check --all-targets --locked
+
+  # heldkeys and zizmor on this repository's own workflows. heldkeys is built
+  # from the commit under test, so the job also checks the current code.
+  heldkeys:
+    name: heldkeys ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - run: cargo build --locked --release
+      - name: Run heldkeys ci
+        run: |
+          ./target/release/heldkeys ci --format markdown --fail-on none --output "$RUNNER_TEMP/heldkeys.md"
+          cat "$RUNNER_TEMP/heldkeys.md" >> "$GITHUB_STEP_SUMMARY"
+          ./target/release/heldkeys ci --fail-on high
+
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: zizmorcore/zizmor-action@85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e # v0.7.1
+        with:
+          inputs: .github/workflows action.yml
+          version: 1.31.1
+          advanced-security: false

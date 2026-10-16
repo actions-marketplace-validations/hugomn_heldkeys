@@ -8,7 +8,7 @@
 //! `yaml-rust2`: maintained, pure safe Rust, YAML 1.2. YAML 1.2 matters for
 //! workflows: the key `on:` stays the string "on" instead of turning into the
 //! boolean `true` as it does under YAML 1.1. `saphyr` (same maintainers) is the
-//! newer successor, but its API is still changing; revisit for v0.2.
+//! newer successor, but its API is still changing.
 
 use std::collections::BTreeMap;
 

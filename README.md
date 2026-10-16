@@ -1,9 +1,5 @@
 <div align="center">
 
-<!-- Logo: uncomment once docs/assets/logo.svg exists.
-<img src="docs/assets/logo.svg" alt="" width="88" height="88">
--->
-
 # heldkeys
 
 **Which keys is your agent holding?**
@@ -38,13 +34,11 @@ A single self-contained binary for Linux and macOS: read-only, no telemetry, don
 ## What heldkeys never does
 
 > [!IMPORTANT]
-> **It never prints a secret.** Values appear only as fingerprints such as `AKIA…PLE`, and only for token formats whose prefix is public. Passwords and tokens of unknown shape get no fingerprint at all. A test runs every fixture through every output format, on stdout, stderr and `--output` files, and fails if any 10-character slice of a fixture secret appears anywhere.
+> - Never prints a secret. Values appear only as fingerprints such as `AKIA…PLE`, and only for token formats whose prefix is public. Passwords and tokens of unknown shape get no fingerprint at all. A test runs every fixture through every output format, on stdout, stderr and `--output` files, and fails if any 10-character slice of a fixture secret appears anywhere.
+> - Never sends your data anywhere. No telemetry, no update checks, no crash reports. `--deep` is reserved for future checks that ask a credential's own issuer about it; today it does nothing.
+> - Never writes to your machine. It reads files and the environment and reports. The only files it creates are the ones you name with `--output` or `--write-baseline`.
 >
-> **It never sends your data anywhere.** No telemetry, no update checks, no crash reports. `--deep` is reserved for future checks that ask a credential's own issuer about it; today it does nothing.
->
-> **It never writes to your machine.** It reads files and the environment and reports. The only files it creates are the ones you name with `--output` or `--write-baseline`.
->
-> **It touches only these things outside its own process:**
+> Outside its own process it touches only these things:
 >
 > - `ssh-add -l`, with nothing but `SSH_AUTH_SOCK` and `PATH` in its environment, to list the public fingerprints of keys loaded in your SSH agent.
 > - Each Docker socket it finds: it connects and closes again, sending nothing.
@@ -54,13 +48,13 @@ A single self-contained binary for Linux and macOS: read-only, no telemetry, don
 >
 > Of an SSH private key file it reads only the first 256 bytes, enough for the header and the cipher name, and keeps nothing from them.
 >
-> **It needs nothing else.** No runtime, no daemon, no config file (an optional `.heldkeys.toml` only lists accepted risks), no `$HOME`. It works on a read-only filesystem, and the prebuilt Linux binaries are static (musl), so you can copy one into any container.
+> Beyond that it needs no runtime, no daemon, no config file (an optional `.heldkeys.toml` only lists accepted risks), no `$HOME`. It works on a read-only filesystem, and the prebuilt Linux binaries are static (musl), so you can copy one into any container.
 
 What it defends against, and what it cannot see, is in the [threat model](docs/threat-model.md).
 
 ## Why I built this
 
-At work, our agents run code against customer systems from a sandbox where nothing can authenticate. I wrote up that design in [A Capability, Not a Credential](https://www.hugo.im/posts/capability-not-credential/). Then I asked the same question about my own laptop, where I run coding agents every day, and couldn't find a tool that answered it. Secret scanners look for secrets committed to a repository. I wanted to know what a process running as me could use right now.
+I run coding agents on my laptop every day, and at some point I asked what one of them could use if a prompt injection talked it into running a command. I couldn't find a tool that answered it. Secret scanners look for secrets committed to a repository. I wanted to know what a process running as me could use right now.
 
 So I built heldkeys and ran it on my own machine first. It found the usual things that build up over the years: an old plaintext git credentials file, a token exported in my shell profile, SSH keys without a passphrase. Every agent I started could have used them. Cleaning them up took about twenty minutes.
 
@@ -148,7 +142,7 @@ Cloud CLIs (AWS, gcloud, Azure, kube)
 - **Developer platform CLIs**: the logins that Vault (`~/.vault-token`), Terraform, Vercel, Netlify, Fly.io, Supabase, Cloudflare Wrangler, Stripe (test-mode keys are Low), Doppler, Railway and Kaggle keep on disk, on macOS and Linux paths, honouring `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, `HF_HOME` and `KAGGLE_CONFIG_DIR`.
 - **Package and git credentials**: `.netrc`, `.git-credentials`, git credential helpers, the GitHub CLI login, `.npmrc`, `.pypirc`, Cargo's `credentials.toml`, Docker registry logins.
 - **Git config**: tokens in `url.<base>.insteadOf` rewrites, `http.extraheader` and remote URLs, in `~/.gitconfig`, `~/.config/git/config` and the project's `.git/config`.
-- **The project**: `.env*` files under the working directory, gitignored ones included, because `.gitignore` keeps files out of git, not away from an agent. The walk goes 4 levels deep and skips dependency directories such as `node_modules`, `vendor` and `.venv`. Copies that VS Code's Local History extension keeps in `.history/` (`.env_20260507230125`) are reported too, as editor history copies.
+- **The project**: `.env*` files under the working directory, gitignored ones included, because an agent can read gitignored files. The walk goes 4 levels deep and skips dependency directories such as `node_modules`, `vendor` and `.venv`. Copies that VS Code's Local History extension keeps in `.history/` (`.env_20260507230125`) are reported too, as editor history copies.
 - **SSH**: keys loaded in `ssh-agent` (public fingerprints only) and private keys without a passphrase.
 - **MCP servers**: tokens in the env, args, URLs and headers of MCP server configs for Claude Desktop, Claude Code, Cursor, VS Code, Windsurf, Zed, Codex and Gemini CLI, in your home and in the project. A project-level config (`.mcp.json`, `.cursor/mcp.json`, ...) is also noted, because opening the directory starts its servers.
 - **The host around it**: a reachable Docker socket, a mounted Kubernetes service account token, the cloud metadata endpoint.
@@ -202,11 +196,11 @@ $ heldkeys ci
 heldkeys ci: 5 AI agent workflow risks, 0 credentials reachable in this job
 
 Fix these first
-  HIGH    Agent step gets secrets it does not…  .github/workflows/triage.yml:23 job…ode-action@v1)
-  HIGH    AI agent runs in a checkout of the…   .github/workflows/triage.yml:23 job…ode-action@v1)
-  HIGH    Agent runs any shell with write…      .github/workflows/triage.yml:23 job…ode-action@v1)
-  MEDIUM  AI agent on an untrusted trigger      .github/workflows/triage.yml:23 job…ode-action@v1)
-  MEDIUM  AI agent action not pinned to a…      .github/workflows/triage.yml:23 job…ode-action@v1)
+  HIGH    Agent step gets secrets it does not…  .github/…/triage.yml:23 claude-code-action@v1
+  HIGH    AI agent runs in a checkout of the…   .github/…/triage.yml:23 claude-code-action@v1
+  HIGH    Agent runs any shell with write…      .github/…/triage.yml:23 claude-code-action@v1
+  MEDIUM  AI agent on an untrusted trigger      .github/…/triage.yml:23 claude-code-action@v1
+  MEDIUM  AI agent action not pinned to a…      .github/…/triage.yml:23 claude-code-action@v1
 
 Where they are    high  medium     low
   Workflows          3       2       -
@@ -254,7 +248,7 @@ jobs:
           sarif: true
 ```
 
-`@v0` is the moving major tag, available from v0.1.1. For anything that matters, pin the action to a full commit SHA with the version in a comment (`hugomn/heldkeys@<full-commit-sha> # v0.2.1`). The step fails on a High finding by default; `fail-on: none` reports without failing. All inputs and outputs, and how to run it inside the agent's own job, are in [docs/github-action.md](docs/github-action.md). Without the action, in any CI:
+`@v0` is the moving major tag, available from v0.1.1. For anything that matters, pin the action to a full commit SHA with the version in a comment (`hugomn/heldkeys@<full-commit-sha> # v0.2.2`). The action installs the heldkeys binary of its own release by default, so pinning the action pins the binary too. The step fails on a High finding by default; `fail-on: none` reports without failing. All inputs and outputs, and how to run it inside the agent's own job, are in [docs/github-action.md](docs/github-action.md). Without the action, in any CI:
 
 ```sh
 heldkeys ci --format markdown --fail-on none >> "$GITHUB_STEP_SUMMARY"
@@ -321,7 +315,7 @@ In a pull request both files come from the pull request's own checkout, so the p
 
 ## In sandboxes
 
-A sandbox changes what an agent can see, so heldkeys has to run inside it, not next to it.
+A sandbox changes what an agent can see, so run heldkeys inside the sandbox.
 
 **As a gate in the entrypoint.** `heldkeys preflight` runs the same checks as `scan`, prints a one-line verdict and exits 1 when a finding reaches `--fail-on` (default `high`), so a misconfigured sandbox refuses to start instead of leaking. Under a FAIL it lists what caused it, most urgent first: machine-wide credentials before project files, at most 10 unless you add `--details`.
 
@@ -357,7 +351,7 @@ heldkeys scan --docker my-agent-container --binary ./heldkeys-x86_64-unknown-lin
 
 Only Linux targets are supported. Pass `--binary` when the heldkeys you run is not a Linux build for the target's CPU, for example on a Mac; [docs/building.md](docs/building.md) shows how to build one. `kubectl cp` needs `tar` in the container. The copy deletes its own file when it starts, and heldkeys runs `rm -f` on it afterwards, also after a failed copy or a Ctrl-C; what can still leave it behind (heldkeys killed with SIGKILL before the copy starts, a copy that cannot start in an image without `rm`, a runtime that refuses `docker exec -u 0` for a non-root container) is in [docs/sandboxes.md](docs/sandboxes.md#what-happens-to-the-copy).
 
-**Through the agent itself.** The most honest answer comes from the agent's own tool call, because it runs under the agent's real sandbox profile (macOS seatbelt, bubblewrap, a devcontainer). Ask it:
+**Through the agent itself.** The most accurate result comes from the agent's own tool call, because it runs under the agent's real sandbox profile (macOS seatbelt, bubblewrap, a devcontainer). Ask it:
 
 > Run `heldkeys --format json` and tell me which credentials you can reach, starting with the long-lived ones that can write.
 
@@ -503,7 +497,7 @@ Text taken from the files it scans (workflow job names, `uses:` values, config k
 brew install hugomn/tap/heldkeys
 ```
 
-**Install script.** Picks the right prebuilt binary for your platform. It is short; read it first if you prefer.
+**Install script.** Picks the right prebuilt binary for your platform. It is the standard cargo-dist installer and adds the install directory to your shell profile; read it first if you prefer, or set `HELDKEYS_NO_MODIFY_PATH=1`.
 
 ```sh
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/hugomn/heldkeys/releases/latest/download/heldkeys-installer.sh | sh
@@ -547,7 +541,7 @@ heldkeys sits next to some excellent tools. Most of them answer a different ques
 <details>
 <summary><b>Does heldkeys read my secrets?</b></summary>
 
-It has to read files to know what is in them, the same way the agent could. Values stay in the memory of a short-lived process: they are classified, fingerprinted when the format allows it, and dropped. Nothing is written, logged, cached or sent. Each check documents exactly which files and variables it reads (`heldkeys checks`, or the rule pages), and the code is plain Rust with one check per file, small enough to audit in an evening. Where reading is not needed, it does not read: of an SSH private key file it reads only the first 256 bytes, which hold the header and the name of the cipher, and keeps nothing but the answer to "is there a passphrase?".
+It has to read files to know what is in them, the same way the agent could. Values stay in the memory of a short-lived process: they are classified, fingerprinted when the format allows it, and dropped. Nothing is written, logged, cached or sent. Each check documents exactly which files and variables it reads (`heldkeys checks`, or the rule pages), and the code is plain Rust with one check per file, so you can read the checks you care about. Where reading is not needed, it does not read: of an SSH private key file it reads only the first 256 bytes, which hold the header and the name of the cipher, and keeps nothing but the answer to "is there a passphrase?".
 
 </details>
 
@@ -568,14 +562,14 @@ It is built on the assumption that everything it scans may be hostile, because a
 <details>
 <summary><b>Why Rust?</b></summary>
 
-Because the tool has to be one file you can drop into a sandbox, a distroless container or a CI runner, with no runtime and a scan that takes milliseconds. It also parses config files that an attacker may control, so memory safety matters. The code avoids the clever parts of the language on purpose: no async, no macros of our own, six dependencies (`clap`, `owo-colors`, `regex`, `serde`, `serde_json`, `yaml-rust2`), plus `libc` on Unix for one flag when opening files.
+Because the tool has to be one file you can drop into a sandbox, a distroless container or a CI runner, with no runtime and a scan that finishes in well under a second. It also parses config files that an attacker may control, so memory safety matters. The code avoids the clever parts of the language on purpose: no async, no macros of our own, seven dependencies (`clap`, `owo-colors`, `regex`, `serde`, `serde_json`, `toml`, `yaml-rust2`), plus `libc` on Unix for one flag when opening files.
 
 </details>
 
 <details>
 <summary><b>Does it work on Windows?</b></summary>
 
-Not supported yet. v0.1 is built and tested on Linux and macOS only, and some checks assume Unix paths and sockets. Under WSL, use the Linux binary. Windows support is on the list; issues and pull requests are welcome.
+Not supported yet. heldkeys is built and tested on Linux and macOS only, and some checks assume Unix paths and sockets. Under WSL, use the Linux binary. Windows support is on the list; issues and pull requests are welcome.
 
 </details>
 
@@ -589,7 +583,7 @@ Credentials it has no check for yet: browser sessions, IDE tokens, what sits ins
 <details>
 <summary><b>Should I run it as root?</b></summary>
 
-No. Run it as the user the agent runs as. Root sees more than the agent does, which is not the question.
+No. Run it as the user the agent runs as. Root can read files the agent cannot, so the report would list credentials the agent cannot reach.
 
 </details>
 

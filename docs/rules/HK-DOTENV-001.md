@@ -10,7 +10,7 @@ heldkeys walks the working directory (or `--path`) to a depth of 4, skipping onl
 
 ## Why it matters for agents
 
-Coding agents read project files freely, and `.env` files are where projects keep their secrets. `.gitignore` keeps them out of git, not away from the agent, so heldkeys reports them even when they are ignored. A single `cat .env` or a broad file search is enough.
+Coding agents read project files freely, and `.env` files are where projects keep their secrets. An agent can read gitignored files, so heldkeys reports them even when they are ignored. A single `cat .env` or a broad file search is enough.
 
 ## How to fix
 

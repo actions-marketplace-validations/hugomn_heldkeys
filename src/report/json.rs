@@ -24,7 +24,7 @@ struct Document<'a> {
     schema: &'static str,
     tool: Tool,
     mode: &'static str,
-    /// The scanned directory as shown ("~/workspace"). Baselines use it to
+    /// The scanned directory as shown ("~/code"). Baselines use it to
     /// compare locations relative to it.
     #[serde(skip_serializing_if = "Option::is_none")]
     origin: Option<&'a str>,

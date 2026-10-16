@@ -14,7 +14,7 @@ heldkeys only looks at agent actions. For pinning across all your actions, use z
 
 Tags and branches are mutable: whoever can push to the action's repository can point `v1` at different code, and every workflow using `@v1` runs it on its next trigger. For most actions that is a supply-chain risk. For an agent action it is worse, because the agent step is by design the step that holds the model key, a write token and often the most secrets in the workflow.
 
-This is not hypothetical. In March 2025 the `tj-actions/changed-files` tags were rewritten to point at a commit that dumped runner memory, including secrets, into public build logs (CVE-2025-30066). Every repository that pinned by tag ran it; the ones pinned by SHA did not.
+In March 2025 the `tj-actions/changed-files` tags were rewritten to point at a commit that dumped runner memory, including secrets, into public build logs (CVE-2025-30066). Every repository that pinned by tag ran it; the ones pinned by SHA did not.
 
 ## Vulnerable
 

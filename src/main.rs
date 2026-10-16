@@ -216,7 +216,7 @@ fn context(common: &CommonArgs) -> Result<Context, String> {
 }
 
 /// The scanned directory as the reader knows it: `~` for the home
-/// directory, `~/workspace` under it, the full path elsewhere.
+/// directory, `~/code` under it, the full path elsewhere.
 fn origin(ctx: &Context) -> String {
     match ctx.cwd.strip_prefix(&ctx.home) {
         Ok(rest) if rest.as_os_str().is_empty() => "~".to_string(),

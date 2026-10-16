@@ -8,12 +8,14 @@
 #    and origin/main is an ancestor of HEAD.
 # 2. Bumps Cargo.toml and Cargo.lock, dates the Unreleased section of
 #    CHANGELOG.md and updates the version examples in the docs.
-# 3. Runs fmt, clippy, the tests and `dist plan`, then the private guard if
-#    there is one.
+# 3. Runs fmt, clippy, the tests and `dist plan`, then $HELDKEYS_RELEASE_HOOK
+#    with the version if it is set, for any extra checks of your own.
 # 4. Squashes everything since origin/main into one commit, "heldkeys X.Y.Z",
 #    and asks before going further.
-# 5. Pushes main, tags vX.Y.Z, moves the vMAJOR tag and pushes both.
-# 6. Waits for the Release workflow and prints the release URL.
+# 5. Pushes main and tags vX.Y.Z.
+# 6. Waits for the Release workflow, then moves the vMAJOR tag. The action
+#    installs the binary of its own release, so vMAJOR only moves once that
+#    release has its binaries.
 #
 # --dry-run does steps 1 to 3, prints what steps 4 to 6 would do, and then puts
 # the files back as they were. --yes skips the confirmation. --brew upgrades
@@ -195,7 +197,9 @@ edit CHANGELOG.md awk -v version="$VERSION" -v today="$TODAY" -v current="$CURRE
 # container image tag.
 old="$(re "$CURRENT")"
 edit README.md sed -E -e "s/(hugomn\/heldkeys@[^ ]+ # v)${old}([^0-9]|$)/\1${VERSION}\2/g"
-edit action.yml sed -E -e "s/(such as \`?)${old}([^0-9]|$)/\1${VERSION}\2/g"
+edit action.yml sed -E \
+  -e "s/(such as \`?)${old}([^0-9]|$)/\1${VERSION}\2/g" \
+  -e "s/^(    default: \")${old}\"$/\1${VERSION}\"/"
 edit docs/github-action.md sed -E \
   -e "s/(hugomn\/heldkeys@[^ ]+ # v)${old}([^0-9]|$)/\1${VERSION}\2/g" \
   -e "s/(such as \`?)${old}([^0-9]|$)/\1${VERSION}\2/g"
@@ -223,13 +227,10 @@ HELDKEYS_NO_NET=1 cargo test --locked
 step "dist plan"
 dist plan
 
-guard="${HELDKEYS_PRIVATE_GUARD:-$HOME/.config/heldkeys-private/guard.sh}"
-if [[ -n "${HELDKEYS_PRIVATE_GUARD:-}" && ! -x "$guard" ]]; then
-  die "HELDKEYS_PRIVATE_GUARD is set but $guard is not executable"
-fi
-if [[ -x "$guard" ]]; then
-  step "Private guard"
-  "$guard" "$VERSION" || die "the private guard failed"
+if [[ -n "${HELDKEYS_RELEASE_HOOK:-}" ]]; then
+  [[ -x "$HELDKEYS_RELEASE_HOOK" ]] || die "HELDKEYS_RELEASE_HOOK is set but $HELDKEYS_RELEASE_HOOK is not executable"
+  step "Release hook"
+  "$HELDKEYS_RELEASE_HOOK" "$VERSION" || die "the release hook failed"
 fi
 
 # --- dry run stops here ------------------------------------------------------
@@ -244,9 +245,9 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   git push origin HEAD:main
   git tag -a ${TAG} -m "heldkeys ${VERSION}"
   git push origin refs/tags/${TAG}
+  gh run watch <Release run for ${TAG}> --exit-status
   git tag -f ${MAJOR_TAG}
   git push --force origin refs/tags/${MAJOR_TAG}
-  gh run watch <Release run for ${TAG}> --exit-status
   gh release view ${TAG} --json url$([[ "$BREW" -eq 1 ]] && printf '\n  brew update && brew upgrade hugomn/tap/heldkeys')
 EOF
   echo
@@ -270,7 +271,7 @@ git --no-pager show --stat HEAD
 if [[ "$YES" -ne 1 ]]; then
   echo
   answer=""
-  read -r -p "Push main, tag ${TAG} and move ${MAJOR_TAG}? [y/N] " answer || true
+  read -r -p "Push main and ${TAG} (and move ${MAJOR_TAG} once it is released)? [y/N] " answer || true
   if [[ "$answer" != "y" && "$answer" != "Y" ]]; then
     echo "Stopped. Nothing was pushed. The squashed commit is local only."
     echo "To go back to the commits you had: git reset --hard $BEFORE"
@@ -285,11 +286,6 @@ git push origin HEAD:main
 git tag -a "$TAG" -m "heldkeys ${VERSION}"
 git push origin "refs/tags/${TAG}"
 
-step "Moving ${MAJOR_TAG} to ${TAG}"
-# A lightweight tag, like the existing v0.
-git tag -f "$MAJOR_TAG"
-git push --force origin "refs/tags/${MAJOR_TAG}"
-
 # --- 6. watch the release ----------------------------------------------------
 
 step "Waiting for the Release workflow"
@@ -303,7 +299,12 @@ done
 [[ -n "$run_id" ]] || die "no Release run for $TAG after 150 seconds; see ${REPO_URL}/actions"
 
 gh run watch "$run_id" --repo "$REPO" --exit-status \
-  || die "the Release workflow failed: ${REPO_URL}/actions/runs/${run_id}"
+  || die "the Release workflow failed: ${REPO_URL}/actions/runs/${run_id}; ${MAJOR_TAG} was not moved"
+
+step "Moving ${MAJOR_TAG} to ${TAG}"
+# A lightweight tag, like the existing v0.
+git tag -f "$MAJOR_TAG"
+git push --force origin "refs/tags/${MAJOR_TAG}"
 
 release_url="$(gh release view "$TAG" --repo "$REPO" --json url --jq .url)"
 echo

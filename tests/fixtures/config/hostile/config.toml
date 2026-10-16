@@ -8,4 +8,4 @@ reason = "ok\r\n::error::pwned \u001b]0;title\u0007 [click](https://evil.example
 [[ignore]]
 rule = "HK-WF-*"
 path = "*"
-reason = "##[warning]defused https://user:FAKEcfgPASSWORD0903@example.com"
+reason = "##[warning]defused https://user:FAKEcfgPASSWORD1103@example.com"

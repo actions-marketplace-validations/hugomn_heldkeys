@@ -42,7 +42,7 @@ pub struct Report {
     pub mode: Mode,
     /// Sorted, most severe first (see `finding::sort_findings`).
     pub findings: Vec<Finding>,
-    /// The scanned directory as shown to the reader ("~/workspace"), when
+    /// The scanned directory as shown to the reader ("~/code"), when
     /// known. Text output names it in its first line and shows paths under
     /// it relative to it.
     pub origin: Option<String>,
