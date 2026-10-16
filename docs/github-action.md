@@ -26,7 +26,7 @@ jobs:
       security-events: write # sarif: true uploads to code scanning
       # actions: read        # also needed for the upload in private repositories
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -38,13 +38,13 @@ jobs:
 The step fails when a finding reaches `fail-on` (High by default), after the report is in the job summary and the SARIF upload is done, so a failing run still shows its findings.
 
 > [!TIP]
-> `@v0` follows the latest v0 release, which is convenient but means the code you run can change under you. For anything that matters, pin the action to a full commit SHA with the version in a comment, for example `uses: hugomn/heldkeys@<full-commit-sha> # v0.2.0`, and let Dependabot update it. heldkeys reports unpinned agent actions itself ([HK-WF-005](rules/HK-WF-005.md)), and zizmor reports the rest.
+> `@v0` follows the latest v0 release, which is convenient but means the code you run can change under you. For anything that matters, pin the action to a full commit SHA with the version in a comment, for example `uses: hugomn/heldkeys@<full-commit-sha> # v0.2.1`, and let Dependabot update it. heldkeys reports unpinned agent actions itself ([HK-WF-005](rules/HK-WF-005.md)), and zizmor reports the rest.
 
 ## Inputs
 
 | Input | Default | Description |
 |---|---|---|
-| `version` | `latest` | heldkeys release to install, such as `0.2.0`. `latest` installs the newest release; pin a version for reproducible builds. |
+| `version` | `latest` | heldkeys release to install, such as `0.2.1`. `latest` installs the newest release; pin a version for reproducible builds. |
 | `fail-on` | `high` | Fail the step when a finding reaches this level: `none`, `high`, `medium`, `low` or `long-lived-write`. |
 | `format` | `text` | Format of the report printed to the log: `text`, `json`, `markdown` or `sarif`. |
 | `sarif` | `false` | Write a SARIF report and upload it to code scanning with `github/codeql-action/upload-sarif` (category `heldkeys`). The job needs `security-events: write`, and `actions: read` in private repositories. |
@@ -75,7 +75,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -114,7 +114,7 @@ Leave `sarif` off here. A dedicated job, as in the quick start, is the better pl
 Point `path` at the checkout. SARIF paths are relative to it, and the action passes it to `upload-sarif` as `checkout_path`:
 
 ```yaml
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: app
           persist-credentials: false
@@ -145,10 +145,10 @@ Two ways to close the gap:
 
   ```yaml
       steps:
-        - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
           with:
             persist-credentials: false
-        - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
           with:
             ref: ${{ github.event.repository.default_branch }}
             path: .heldkeys-base
@@ -176,7 +176,7 @@ The job summary is usually enough. If you want a comment as well, post the `mark
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - id: heldkeys

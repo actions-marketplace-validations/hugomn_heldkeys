@@ -7,6 +7,17 @@ public interface: a released id never changes meaning.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-16
+
+### Changed
+
+- The GitHub Action adds `heldkeys` to the job's PATH, so later steps can run it directly (for example to write a baseline).
+- Workflow examples and CI pin `actions/checkout` v7.0.1, which runs on Node 24.
+
+### Fixed
+
+- `scan --docker` and `scan --kube` no longer leave the copied binary in the target when they are interrupted. The copy now deletes its own file as soon as it starts (a hidden `--remove-self` flag), so once it runs, killing heldkeys cannot leave it behind. After a failed `docker cp` or `kubectl cp`, which may have written part of the file, heldkeys now runs `rm -f` on the path too. In Docker that `rm -f` runs as root (`docker exec -u 0`, on the exact path only), because `docker cp` creates the file owned by root in a sticky `/tmp`: before, a container running as a non-root user always kept the copy. Ctrl-C and SIGTERM during the copy or the scan stop that step and still run the `rm -f`. A cleanup that fails after a failed scan is now part of the error message instead of being dropped. What can still leave the file behind is listed in docs/sandboxes.md. `--binary` must now point at heldkeys 0.2.1 or later.
+
 ## [0.2.0] - 2026-10-16
 
 ### Added
@@ -103,7 +114,8 @@ heldkeys treats everything it scans as untrusted: a pull request controls its wo
 
 Published to crates.io early to reserve the name, and yanked. Use 0.1.1.
 
-[Unreleased]: https://github.com/hugomn/heldkeys/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/hugomn/heldkeys/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/hugomn/heldkeys/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/hugomn/heldkeys/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/hugomn/heldkeys/releases/tag/v0.1.1
 [0.1.0]: https://crates.io/crates/heldkeys/0.1.0

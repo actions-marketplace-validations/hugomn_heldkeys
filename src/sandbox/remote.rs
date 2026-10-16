@@ -7,11 +7,23 @@
 //! 2. Check that the binary we are about to copy is a Linux binary for that
 //!    CPU. Usually this binary is a macOS or glibc build, so `--binary` points
 //!    at a static musl build instead (see docs/building.md).
-//! 3. Copy it to `/tmp/heldkeys-<random>` in the target.
-//! 4. Run it there with `scan --format json --fail-on none`.
-//! 5. Remove the copy, whatever happened in step 4.
+//! 3. Copy it to `/tmp/heldkeys-<random>` in the target. If the copy fails,
+//!    remove whatever part of the file it may have written.
+//! 4. Run it there with `--remove-self scan --format json --fail-on none`.
+//!    `--remove-self` makes the copy delete its own file before it does
+//!    anything else, so once it has started, nothing this side does (or
+//!    fails to do, because it was killed) can leave it behind.
+//! 5. `rm -f` the copy, whatever happened in step 4, for a copy that never
+//!    started (a `noexec` /tmp, a missing loader). SIGINT and SIGTERM stop
+//!    steps 3 and 4 early but still let this step run.
 //! 6. Parse the JSON back into findings, so the caller renders them locally
 //!    in any format and applies `--fail-on` here.
+//!
+//! What can still leave the file behind: this process being killed with
+//! SIGKILL (or the machine dying) between the end of the copy and the start
+//! of the copied binary, a binary that cannot start in an image without
+//! `rm`, and a non-root Docker container whose runtime refuses the root
+//! `rm` (see `Target::remove` and docs/sandboxes.md).
 //!
 //! Every command is built with `Command` and explicit arguments, never a
 //! shell string, so names cannot inject shell syntax.
@@ -21,6 +33,7 @@
 //! every string read back from it (uname output, stderr, the JSON report)
 //! goes through `sanitize` before it can reach our stdout or stderr.
 
+use std::ffi::OsString;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
@@ -49,6 +62,27 @@ const STDERR_SHOWN: usize = 500;
 /// Characters of other target-supplied text (uname output, an unknown
 /// severity) shown in an error message.
 const VALUE_SHOWN: usize = 80;
+
+/// The hidden flag that makes heldkeys delete its own executable file as the
+/// first thing it does. Passed to the copy run in the target; `main` acts on
+/// it before parsing any other argument.
+pub const REMOVE_SELF_FLAG: &str = "--remove-self";
+
+/// Whether `args` (the arguments after the program name) contain
+/// `--remove-self`, before any `--`.
+pub fn wants_remove_self(args: impl IntoIterator<Item = OsString>) -> bool {
+    args.into_iter()
+        .take_while(|a| a != "--")
+        .any(|a| a == REMOVE_SELF_FLAG)
+}
+
+/// Deletes the file of the running executable. Linux and macOS let a running
+/// program unlink its own file: the process keeps running from memory, and
+/// the file is gone from the directory at once.
+pub fn remove_self() -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|e| format!("cannot find this binary: {e}"))?;
+    std::fs::remove_file(&exe).map_err(|e| format!("cannot remove {}: {e}", exe.display()))
+}
 
 /// Where to run.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -192,6 +226,26 @@ impl Target {
         }
     }
 
+    /// Removes the copy at exactly `remote` (never a pattern):
+    /// `docker exec -u 0 <container> rm -f <remote>` or
+    /// `kubectl [-n ns] exec <pod> [-c container] -- rm -f <remote>`.
+    ///
+    /// `docker cp` creates the file owned by root, and /tmp is normally
+    /// sticky, so in a container that runs as another user only root may
+    /// delete it. `kubectl cp` writes it as the container's own user.
+    pub fn remove(&self, remote: &str) -> Command {
+        match self {
+            Target::Docker { container } => {
+                let mut cmd = Command::new("docker");
+                cmd.args(["exec", "-u", "0"])
+                    .arg(container)
+                    .args(["rm", "-f", remote]);
+                cmd
+            }
+            Target::Kube { .. } => self.exec(&["rm", "-f", remote]),
+        }
+    }
+
     /// Commands that read the target's platform from metadata, for images
     /// without `uname` (distroless, scratch). Each step's output is the next
     /// step's last argument; the final output is `os/arch`.
@@ -222,6 +276,30 @@ impl Target {
                 vec![node, platform]
             }
         }
+    }
+}
+
+/// The commands a remote run is made of. `Target` builds `docker` and
+/// `kubectl` commands; the tests build local stand-ins.
+trait Runner {
+    fn copy(&self, local: &Path, remote: &str) -> Command;
+    fn exec(&self, args: &[&str]) -> Command;
+    fn remove(&self, remote: &str) -> Command;
+    fn describe(&self) -> String;
+}
+
+impl Runner for Target {
+    fn copy(&self, local: &Path, remote: &str) -> Command {
+        Target::copy(self, local, remote)
+    }
+    fn exec(&self, args: &[&str]) -> Command {
+        Target::exec(self, args)
+    }
+    fn remove(&self, remote: &str) -> Command {
+        Target::remove(self, remote)
+    }
+    fn describe(&self) -> String {
+        Target::describe(self)
     }
 }
 
@@ -271,13 +349,23 @@ fn scan_unsanitized(
     }
 
     let remote_path = format!("/tmp/{}-{}", crate::TOOL_NAME, random_suffix());
-    run(
-        target.copy(&binary, &remote_path),
-        "copying heldkeys into the target",
+    let output = copy_run_remove(
+        target,
+        &binary,
+        &remote_path,
+        scan_args,
+        LIMITS,
+        &mut warnings,
     )?;
+    let findings = parse_report(&output)?;
+    Ok(RemoteScan { findings, warnings })
+}
 
+/// The arguments that run the copy at `remote_path` in the target.
+fn remote_argv<'a>(remote_path: &'a str, scan_args: &'a [String]) -> Vec<&'a str> {
     let mut args = vec![
-        remote_path.as_str(),
+        remote_path,
+        REMOVE_SELF_FLAG,
         "scan",
         "--format",
         "json",
@@ -285,21 +373,106 @@ fn scan_unsanitized(
         "none",
     ];
     args.extend(scan_args.iter().map(String::as_str));
-    let output = run(target.exec(&args), "running heldkeys in the target");
+    args
+}
 
-    // Always clean up, even when the run failed.
-    if let Err(e) = run(
-        target.exec(&["rm", "-f", &remote_path]),
-        "removing the copy",
+/// Copies `binary` to `remote_path` in the target, runs it there and removes
+/// it again, returning the run's stdout.
+///
+/// The copy deletes itself when it starts (`--remove-self`); the `rm -f`
+/// afterwards covers a copy that failed partway or never started. While this
+/// runs, SIGINT and SIGTERM stop the copy or the run instead of this process,
+/// so the `rm -f` still happens (a second signal exits at once).
+fn copy_run_remove(
+    target: &impl Runner,
+    binary: &Path,
+    remote_path: &str,
+    scan_args: &[String],
+    limits: Limits,
+    warnings: &mut Vec<String>,
+) -> Result<String, String> {
+    let _signals = interrupt::Guard::install();
+    let step = Limits {
+        stop_on_signal: true,
+        ..limits
+    };
+    if let Err(copy) = run_limited(
+        target.copy(binary, remote_path),
+        "copying heldkeys into the target",
+        step,
     ) {
-        warnings.push(format!(
-            "could not remove {remote_path} from the {}: {e}",
-            target.describe()
-        ));
+        if !copy.started {
+            // docker or kubectl did not start, so nothing was written.
+            return Err(copy.message);
+        }
+        // A copy that failed partway may have left part of the file.
+        return Err(match remove(target, remote_path, limits) {
+            Ok(()) => copy.message,
+            Err(e) => format!(
+                "{}; {remote_path} may be left in the {}, and removing it failed: {e}",
+                copy.message,
+                target.describe()
+            ),
+        });
     }
 
-    let findings = parse_report(&output?)?;
-    Ok(RemoteScan { findings, warnings })
+    let output = run_limited(
+        target.exec(&remote_argv(remote_path, scan_args)),
+        "running heldkeys in the target",
+        step,
+    )
+    .map_err(|e| with_older_binary_hint(e.message));
+
+    // Also when the run failed: the copy may never have started.
+    let removed = remove(target, remote_path, limits);
+    if interrupt::received() {
+        let note = match &removed {
+            Ok(()) => format!("removed {remote_path} from the {}", target.describe()),
+            Err(e) => format!(
+                "{remote_path} may be left in the {}: {e}",
+                target.describe()
+            ),
+        };
+        return Err(format!("interrupted; {note}"));
+    }
+    match (output, removed) {
+        (Ok(out), Ok(())) => Ok(out),
+        (Ok(out), Err(e)) => {
+            // The copy ran, so it most likely deleted itself on start (an
+            // image without `rm`, or a runtime that refuses `exec -u 0`).
+            warnings.push(format!(
+                "could not confirm that {remote_path} is gone from the {}: the copy deletes itself when it starts, and the rm -f afterwards failed: {e}",
+                target.describe()
+            ));
+            Ok(out)
+        }
+        (Err(run), Ok(())) => Err(run),
+        (Err(run), Err(e)) => Err(format!(
+            "{run}; {remote_path} may be left in the {}, and removing it failed: {e}",
+            target.describe()
+        )),
+    }
+}
+
+/// `rm -f <remote_path>` in the target (as root in Docker, see
+/// `Target::remove`). A first SIGINT or SIGTERM does not stop it (a second
+/// exits heldkeys); the timeout does.
+fn remove(target: &impl Runner, remote_path: &str, limits: Limits) -> Result<(), String> {
+    run_limited(target.remove(remote_path), "removing the copy", limits)
+        .map(drop)
+        .map_err(|e| e.message)
+}
+
+/// Adds a hint when the error comes from a `--binary` older than
+/// `--remove-self`, which rejects the flag.
+fn with_older_binary_hint(message: String) -> String {
+    if message.contains(REMOVE_SELF_FLAG) {
+        format!(
+            "{message} (a --binary build older than 0.2.1 does not know {REMOVE_SELF_FLAG}; copy a build of this version)"
+        )
+    } else {
+        message
+    }
 }
 
 /// `--binary` given by the user, or the running executable?
@@ -416,59 +589,92 @@ struct Limits {
     timeout: Duration,
     max_stdout: usize,
     max_stderr: usize,
+    /// Stop the command when SIGINT or SIGTERM arrives (see `interrupt`).
+    stop_on_signal: bool,
 }
 
 const LIMITS: Limits = Limits {
     timeout: COMMAND_TIMEOUT,
     max_stdout: MAX_STDOUT,
     max_stderr: MAX_STDERR,
+    stop_on_signal: false,
 };
+
+/// Why a command failed.
+#[derive(Debug)]
+struct RunError {
+    message: String,
+    /// The command started, so it may have done part of its work.
+    started: bool,
+}
+
+impl RunError {
+    fn started(message: String) -> RunError {
+        RunError {
+            message,
+            started: true,
+        }
+    }
+}
 
 /// Runs a command with no stdin and returns its stdout, or an error with
 /// its (shortened, sanitized) stderr.
 fn run(cmd: Command, what: &str) -> Result<String, String> {
-    run_limited(cmd, what, LIMITS)
+    run_limited(cmd, what, LIMITS).map_err(|e| e.message)
 }
 
 /// `run` with explicit limits. The child's stdout and stderr are read on
 /// their own threads (so neither pipe can fill up and stall it) while this
 /// thread waits for it to exit, and kills it at the deadline.
-fn run_limited(mut cmd: Command, what: &str, limits: Limits) -> Result<String, String> {
+fn run_limited(mut cmd: Command, what: &str, limits: Limits) -> Result<String, RunError> {
     let program = cmd.get_program().to_string_lossy().into_owned();
     let mut child = cmd
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => format!("{what}: {program} is not on PATH"),
-            _ => format!("{what}: cannot run {program}: {e}"),
+        .map_err(|e| RunError {
+            message: match e.kind() {
+                std::io::ErrorKind::NotFound => format!("{what}: {program} is not on PATH"),
+                _ => format!("{what}: cannot run {program}: {e}"),
+            },
+            started: false,
         })?;
     let stdout = read_capped(child.stdout.take(), limits.max_stdout);
     let stderr = read_capped(child.stderr.take(), limits.max_stderr);
-    let status = wait_until(&mut child, Instant::now() + limits.timeout)
-        .map_err(|e| format!("{what}: waiting for {program}: {e}"))?;
+    let status = wait_until(
+        &mut child,
+        Instant::now() + limits.timeout,
+        limits.stop_on_signal,
+    )
+    .map_err(|e| RunError::started(format!("{what}: waiting for {program}: {e}")))?;
     let Some(status) = status else {
         // The readers are left behind: a grandchild may still hold the pipes.
-        return Err(format!(
-            "{what}: {program} did not finish within {} seconds and was stopped",
-            limits.timeout.as_secs()
+        return Err(RunError::started(
+            if limits.stop_on_signal && interrupt::received() {
+                format!("{what}: interrupted, {program} was stopped")
+            } else {
+                format!(
+                    "{what}: {program} did not finish within {} seconds and was stopped",
+                    limits.timeout.as_secs()
+                )
+            },
         ));
     };
     let (stdout, stdout_cut) = stdout.join().unwrap_or_default();
     let (stderr, _) = stderr.join().unwrap_or_default();
     if !status.success() {
         let stderr = String::from_utf8_lossy(&stderr);
-        return Err(format!(
+        return Err(RunError::started(format!(
             "{what} failed ({status}): {}",
             shown(stderr.trim(), STDERR_SHOWN)
-        ));
+        )));
     }
     if stdout_cut {
-        return Err(format!(
+        return Err(RunError::started(format!(
             "{what}: {program} wrote more than {} bytes",
             limits.max_stdout
-        ));
+        )));
     }
     Ok(String::from_utf8_lossy(&stdout).into_owned())
 }
@@ -491,18 +697,93 @@ fn read_capped<R: Read + Send + 'static>(
     })
 }
 
-/// Waits for `child` to exit, or kills it at `deadline` and returns `None`.
-fn wait_until(child: &mut Child, deadline: Instant) -> std::io::Result<Option<ExitStatus>> {
+/// Waits for `child` to exit, or kills it at `deadline` (or, with
+/// `stop_on_signal`, when SIGINT or SIGTERM arrived) and returns `None`.
+fn wait_until(
+    child: &mut Child,
+    deadline: Instant,
+    stop_on_signal: bool,
+) -> std::io::Result<Option<ExitStatus>> {
     loop {
         if let Some(status) = child.try_wait()? {
             return Ok(Some(status));
         }
-        if Instant::now() >= deadline {
+        if Instant::now() >= deadline || (stop_on_signal && interrupt::received()) {
             let _ = child.kill();
             let _ = child.wait();
             return Ok(None);
         }
         thread::sleep(Duration::from_millis(20));
+    }
+}
+
+/// SIGINT and SIGTERM during a remote run: instead of killing this process
+/// (and with it the `rm -f` of the copy), they set a flag that stops the
+/// running command. A second signal exits at once, for when the cleanup
+/// itself hangs. SIGKILL cannot be caught; see the module docs.
+#[cfg(unix)]
+mod interrupt {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    static RECEIVED: AtomicBool = AtomicBool::new(false);
+    const SIGNALS: [libc::c_int; 2] = [libc::SIGINT, libc::SIGTERM];
+
+    extern "C" fn on_signal(_: libc::c_int) {
+        if RECEIVED.swap(true, Ordering::SeqCst) {
+            // SAFETY: _exit is async-signal-safe.
+            unsafe { libc::_exit(130) };
+        }
+    }
+
+    /// Catches the signals while alive; puts the previous handlers back on drop.
+    pub struct Guard {
+        previous: [libc::sighandler_t; 2],
+    }
+
+    impl Guard {
+        pub fn install() -> Guard {
+            RECEIVED.store(false, Ordering::SeqCst);
+            let handler = on_signal as extern "C" fn(libc::c_int) as libc::sighandler_t;
+            // SAFETY: the handler only touches an atomic and calls _exit.
+            let previous = SIGNALS.map(|sig| unsafe { libc::signal(sig, handler) });
+            for (sig, prev) in SIGNALS.into_iter().zip(previous) {
+                if prev == libc::SIG_IGN {
+                    // Ignored by whoever started us (nohup): keep it that way.
+                    // SAFETY: restoring a handler the process already had.
+                    unsafe { libc::signal(sig, libc::SIG_IGN) };
+                }
+            }
+            Guard { previous }
+        }
+    }
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            for (sig, prev) in SIGNALS.into_iter().zip(self.previous) {
+                // SAFETY: restoring a handler the process already had.
+                unsafe { libc::signal(sig, prev) };
+            }
+        }
+    }
+
+    /// Whether SIGINT or SIGTERM arrived since the last `Guard::install`.
+    pub fn received() -> bool {
+        RECEIVED.load(Ordering::SeqCst)
+    }
+}
+
+#[cfg(not(unix))]
+mod interrupt {
+    pub struct Guard;
+
+    impl Guard {
+        pub fn install() -> Guard {
+            Guard
+        }
+    }
+
+    pub fn received() -> bool {
+        false
     }
 }
 
@@ -669,6 +950,20 @@ mod tests {
                 "json"
             ]
         );
+        // As root: the file `docker cp` made is root's, in a sticky /tmp.
+        assert_eq!(
+            argv(&t.remove("/tmp/heldkeys-ab12")),
+            [
+                "docker",
+                "exec",
+                "-u",
+                "0",
+                "agent-box",
+                "rm",
+                "-f",
+                "/tmp/heldkeys-ab12"
+            ]
+        );
         let meta: Vec<Vec<String>> = t.platform_from_metadata().iter().map(argv).collect();
         assert_eq!(
             meta[0],
@@ -702,8 +997,9 @@ mod tests {
                 "agent"
             ]
         );
+        // As the container's user, who owns what `kubectl cp` wrote.
         assert_eq!(
-            argv(&t.exec(&["rm", "-f", "/tmp/heldkeys-ab12"])),
+            argv(&t.remove("/tmp/heldkeys-ab12")),
             [
                 "kubectl",
                 "-n",
@@ -927,7 +1223,8 @@ mod tests {
         let started = Instant::now();
         let err = run_limited(sh("sleep 20"), "sleeping", limits)
             .err()
-            .unwrap();
+            .unwrap()
+            .message;
         assert!(err.contains("did not finish within"), "{err}");
         assert!(started.elapsed() < Duration::from_secs(10));
     }
@@ -942,7 +1239,8 @@ mod tests {
         };
         let err = run_limited(sh("head -c 100000 /dev/zero"), "flooding", limits)
             .err()
-            .unwrap();
+            .unwrap()
+            .message;
         assert!(err.contains("wrote more than 1024 bytes"), "{err}");
         assert_eq!(
             run_limited(sh("printf ok"), "printing", limits).unwrap(),
@@ -959,11 +1257,265 @@ mod tests {
             LIMITS,
         )
         .err()
-        .unwrap();
+        .unwrap()
+        .message;
         assert!(err.starts_with("failing failed ("), "{err}");
         for bad in ['\u{1b}', '\u{7}', '\n', '\r'] {
             assert!(!err.contains(bad), "{err:?}");
         }
         assert!(err.contains("bad?::error::x"), "{err:?}");
+    }
+    #[test]
+    fn the_copy_is_run_with_remove_self() {
+        let scan_args = vec!["--deep".to_string()];
+        assert_eq!(
+            remote_argv("/tmp/heldkeys-ab12", &scan_args),
+            [
+                "/tmp/heldkeys-ab12",
+                "--remove-self",
+                "scan",
+                "--format",
+                "json",
+                "--fail-on",
+                "none",
+                "--deep"
+            ]
+        );
+        assert_eq!(
+            argv(&docker().exec(&remote_argv("/tmp/heldkeys-ab12", &[]))),
+            [
+                "docker",
+                "exec",
+                "agent-box",
+                "/tmp/heldkeys-ab12",
+                "--remove-self",
+                "scan",
+                "--format",
+                "json",
+                "--fail-on",
+                "none"
+            ]
+        );
+    }
+
+    #[test]
+    fn remove_self_is_recognised_before_double_dash_only() {
+        let args = |a: &[&str]| a.iter().map(OsString::from).collect::<Vec<_>>();
+        assert!(wants_remove_self(args(&["--remove-self", "scan"])));
+        assert!(wants_remove_self(args(&[
+            "scan",
+            "--format",
+            "json",
+            "--remove-self"
+        ])));
+        assert!(!wants_remove_self(args(&["scan", "--format", "json"])));
+        assert!(!wants_remove_self(args(&["--", "--remove-self"])));
+        assert!(!wants_remove_self(args(&["--remove-selfish"])));
+    }
+
+    #[test]
+    fn older_binaries_get_a_hint() {
+        let m = with_older_binary_hint(
+            "running heldkeys in the target failed (exit status: 2): error: unexpected argument '--remove-self' found".into(),
+        );
+        assert!(m.ends_with("copy a build of this version)"), "{m}");
+        assert_eq!(with_older_binary_hint("other".into()), "other");
+    }
+
+    /// A stand-in target that is this machine: "remote" paths are files in
+    /// a temp dir, `copy` runs `copy_script` with the local and remote paths
+    /// as $1 and $2, and `exec` logs its argv to `log`, then runs it (or, for
+    /// `rm` with `rm_fails`, fails). Only /bin/sh, never docker or kubectl.
+    #[cfg(unix)]
+    struct Local {
+        log: PathBuf,
+        copy_program: &'static str,
+        copy_script: &'static str,
+        rm_fails: bool,
+    }
+
+    #[cfg(unix)]
+    impl Local {
+        fn new(dir: &Path, copy_script: &'static str) -> Local {
+            Local {
+                log: dir.join("exec.log"),
+                copy_program: "/bin/sh",
+                copy_script,
+                rm_fails: false,
+            }
+        }
+
+        fn execs(&self) -> Vec<String> {
+            std::fs::read_to_string(&self.log)
+                .unwrap_or_default()
+                .lines()
+                .map(String::from)
+                .collect()
+        }
+    }
+
+    #[cfg(unix)]
+    impl Runner for Local {
+        fn copy(&self, local: &Path, remote: &str) -> Command {
+            let mut cmd = Command::new(self.copy_program);
+            cmd.arg("-c")
+                .arg(self.copy_script)
+                .arg("sh")
+                .arg(local)
+                .arg(remote);
+            cmd
+        }
+        fn exec(&self, args: &[&str]) -> Command {
+            let mut cmd = sh(r#"printf '%s\n' "$*" >> "$LOG"
+                if [ "$1" = rm ] && [ -n "$RM_FAILS" ]; then echo 'rm: not found' >&2; exit 127; fi
+                exec "$@""#);
+            cmd.arg("sh").args(args).env("LOG", &self.log);
+            if self.rm_fails {
+                cmd.env("RM_FAILS", "1");
+            }
+            cmd
+        }
+        fn remove(&self, remote: &str) -> Command {
+            self.exec(&["rm", "-f", remote])
+        }
+        fn describe(&self) -> String {
+            "test target".into()
+        }
+    }
+
+    /// `copy_run_remove` installs process-wide signal handlers: one test at
+    /// a time.
+    #[cfg(unix)]
+    static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    #[cfg(unix)]
+    fn copy_run_remove_locally(
+        target: &Local,
+        remote: &Path,
+    ) -> (Result<String, String>, Vec<String>) {
+        use std::os::unix::fs::PermissionsExt;
+        // The "binary" prints its arguments, which become the run's stdout.
+        let binary = target.log.with_file_name("fake-heldkeys");
+        std::fs::write(&binary, "#!/bin/sh\necho \"$@\"\n").unwrap();
+        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let _serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+        let mut warnings = Vec::new();
+        let result = copy_run_remove(
+            target,
+            &binary,
+            remote.to_str().unwrap(),
+            &[],
+            LIMITS,
+            &mut warnings,
+        );
+        (result, warnings)
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_copy_is_still_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        let remote = dir.path().join("heldkeys-ab12");
+        // The copy writes part of the file, then fails.
+        let target = Local::new(
+            dir.path(),
+            r#"printf partial > "$2"; echo 'broken pipe' >&2; exit 1"#,
+        );
+        let (result, _) = copy_run_remove_locally(&target, &remote);
+        let err = result.err().unwrap();
+        assert!(
+            err.starts_with("copying heldkeys into the target failed"),
+            "{err}"
+        );
+        assert!(!err.contains("may be left"), "{err}");
+        assert_eq!(target.execs(), [format!("rm -f {}", remote.display())]);
+        assert!(!remote.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_copy_that_cannot_be_removed_says_so() {
+        let dir = tempfile::tempdir().unwrap();
+        let remote = dir.path().join("heldkeys-ab12");
+        let mut target = Local::new(dir.path(), r#"printf partial > "$2"; exit 1"#);
+        target.rm_fails = true;
+        let (result, _) = copy_run_remove_locally(&target, &remote);
+        let err = result.err().unwrap();
+        assert!(
+            err.contains("may be left in the test target, and removing it failed")
+                && err.contains("rm: not found"),
+            "{err}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_copy_tool_that_does_not_start_needs_no_cleanup() {
+        let dir = tempfile::tempdir().unwrap();
+        let remote = dir.path().join("heldkeys-ab12");
+        let mut target = Local::new(dir.path(), "");
+        target.copy_program = "/nonexistent/docker";
+        let (result, _) = copy_run_remove_locally(&target, &remote);
+        assert!(result.err().unwrap().contains("is not on PATH"));
+        assert!(target.execs().is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_copy_is_removed_after_the_run() {
+        let dir = tempfile::tempdir().unwrap();
+        let remote = dir.path().join("heldkeys-ab12");
+        let target = Local::new(dir.path(), r#"cp "$1" "$2""#);
+        let (result, warnings) = copy_run_remove_locally(&target, &remote);
+        let path = remote.display();
+        assert_eq!(
+            result.unwrap(),
+            "--remove-self scan --format json --fail-on none\n"
+        );
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(
+            target.execs(),
+            [
+                format!("{path} --remove-self scan --format json --fail-on none"),
+                format!("rm -f {path}")
+            ]
+        );
+        assert!(!remote.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_rm_after_a_run_is_a_warning() {
+        let dir = tempfile::tempdir().unwrap();
+        let remote = dir.path().join("heldkeys-ab12");
+        let mut target = Local::new(dir.path(), r#"cp "$1" "$2""#);
+        target.rm_fails = true;
+        let (result, warnings) = copy_run_remove_locally(&target, &remote);
+        assert!(result.is_ok());
+        assert_eq!(warnings.len(), 1);
+        assert!(
+            warnings[0].contains("could not confirm that") && warnings[0].contains("rm: not found"),
+            "{warnings:?}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_signal_during_the_copy_still_removes_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let remote = dir.path().join("heldkeys-ab12");
+        // The copy writes part of the file, then this test process gets
+        // SIGTERM (as from `kill` or Ctrl-C) while the copy is still going.
+        let target = Local::new(
+            dir.path(),
+            r#"printf partial > "$2"; kill -TERM "$PPID"; exec sleep 20"#,
+        );
+        let started = Instant::now();
+        let (result, _) = copy_run_remove_locally(&target, &remote);
+        let err = result.err().unwrap();
+        assert!(err.contains("interrupted"), "{err}");
+        assert!(started.elapsed() < Duration::from_secs(10));
+        assert_eq!(target.execs(), [format!("rm -f {}", remote.display())]);
+        assert!(!remote.exists());
     }
 }

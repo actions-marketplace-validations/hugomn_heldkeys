@@ -20,7 +20,7 @@ branding:
 
 inputs:
   version:
-    description: heldkeys version to install, such as 0.2.0, or latest (the newest release).
+    description: heldkeys version to install, such as 0.2.1, or latest (the newest release).
     required: false
     default: latest
   fail-on:
@@ -127,6 +127,9 @@ runs:
         bin="$dir/heldkeys-${target}/heldkeys"
         "$bin" --version
         echo "bin=$bin" >> "$GITHUB_OUTPUT"
+        # Later steps in the job can run `heldkeys` directly, for example to
+        # write a baseline with --write-baseline.
+        echo "$dir/heldkeys-${target}" >> "$GITHUB_PATH"
 
     - name: Run heldkeys ci
       id: run

@@ -26,7 +26,12 @@ installers = ["shell", "homebrew"]
 # HOMEBREW_TAP_TOKEN repository secret (a fine-grained token scoped to that repo).
 tap = "hugomn/homebrew-tap"
 formula = "heldkeys"
-publish-jobs = ["homebrew"]
+# ./publish-crates is .github/workflows/publish-crates.yml: it publishes to
+# crates.io with Trusted Publishing (a short-lived OIDC token, nothing stored).
+publish-jobs = ["homebrew", "./publish-crates"]
+# The job calling it needs id-token: write for the OIDC token, and contents:
+# read because a called workflow cannot hold more than its caller grants.
+github-custom-job-permissions = { "publish-crates" = { contents = "read", id-token = "write" } }
 install-path = "CARGO_HOME"
 install-updater = false
 # Pull requests only plan the release; they never build or publish.

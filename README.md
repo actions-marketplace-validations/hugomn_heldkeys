@@ -50,7 +50,7 @@ A single self-contained binary for Linux and macOS: read-only, no telemetry, don
 > - Each Docker socket it finds: it connects and closes again, sending nothing.
 > - `169.254.169.254:80`: one TCP connect with a 300 ms timeout and no payload, to see whether a cloud metadata service is reachable. `HELDKEYS_NO_NET=1` turns it off.
 > - `git ls-files`, only with `ci --repo-secrets`, with a cleared environment and hooks disabled.
-> - `docker` or `kubectl`, only with `scan --docker <container>` or `scan --kube <pod>`, to copy the binary to `/tmp` in that target, run it there and remove it.
+> - `docker` or `kubectl`, only with `scan --docker <container>` or `scan --kube <pod>`, to copy the binary to `/tmp` in that target and run it there. The copy deletes its own file as soon as it starts, and heldkeys runs `rm -f` on it afterwards in case it never started; [docs/sandboxes.md](docs/sandboxes.md#what-happens-to-the-copy) lists the cases where it can still be left behind.
 >
 > Of an SSH private key file it reads only the first 256 bytes, enough for the header and the cipher name, and keeps nothing from them.
 >
@@ -246,7 +246,7 @@ jobs:
       contents: read
       security-events: write # sarif: true uploads to code scanning
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: hugomn/heldkeys@v0
@@ -254,7 +254,7 @@ jobs:
           sarif: true
 ```
 
-`@v0` is the moving major tag, available from v0.1.1. For anything that matters, pin the action to a full commit SHA with the version in a comment (`hugomn/heldkeys@<full-commit-sha> # v0.2.0`). The step fails on a High finding by default; `fail-on: none` reports without failing. All inputs and outputs, and how to run it inside the agent's own job, are in [docs/github-action.md](docs/github-action.md). Without the action, in any CI:
+`@v0` is the moving major tag, available from v0.1.1. For anything that matters, pin the action to a full commit SHA with the version in a comment (`hugomn/heldkeys@<full-commit-sha> # v0.2.1`). The step fails on a High finding by default; `fail-on: none` reports without failing. All inputs and outputs, and how to run it inside the agent's own job, are in [docs/github-action.md](docs/github-action.md). Without the action, in any CI:
 
 ```sh
 heldkeys ci --format markdown --fail-on none >> "$GITHUB_STEP_SUMMARY"
@@ -355,7 +355,7 @@ heldkeys scan --kube agent-runner-7c9f -n agents -c agent
 heldkeys scan --docker my-agent-container --binary ./heldkeys-x86_64-unknown-linux-musl
 ```
 
-Only Linux targets are supported. Pass `--binary` when the heldkeys you run is not a Linux build for the target's CPU, for example on a Mac; [docs/building.md](docs/building.md) shows how to build one. `kubectl cp` needs `tar` in the container, and removing the copy needs `rm`.
+Only Linux targets are supported. Pass `--binary` when the heldkeys you run is not a Linux build for the target's CPU, for example on a Mac; [docs/building.md](docs/building.md) shows how to build one. `kubectl cp` needs `tar` in the container. The copy deletes its own file when it starts, and heldkeys runs `rm -f` on it afterwards, also after a failed copy or a Ctrl-C; what can still leave it behind (heldkeys killed with SIGKILL before the copy starts, a copy that cannot start in an image without `rm`, a runtime that refuses `docker exec -u 0` for a non-root container) is in [docs/sandboxes.md](docs/sandboxes.md#what-happens-to-the-copy).
 
 **Through the agent itself.** The most honest answer comes from the agent's own tool call, because it runs under the agent's real sandbox profile (macOS seatbelt, bubblewrap, a devcontainer). Ask it:
 

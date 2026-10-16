@@ -182,3 +182,47 @@ fn remote_scan_needs_a_linux_binary() {
         out.stderr
     );
 }
+
+/// `--remove-self` (hidden; passed to the copy run in a --docker/--kube
+/// target) deletes the running binary's file before anything else, even
+/// when the run then only prints the version. Linux and macOS both allow
+/// unlinking a running executable.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[test]
+fn remove_self_deletes_the_running_binary() {
+    let tmp = tempfile::tempdir().unwrap();
+    let copy = tmp.path().join("heldkeys-copy");
+    std::fs::copy(common::bin_path(), &copy).unwrap();
+    let run_copy = |args: &[&str]| {
+        std::process::Command::new(&copy)
+            .env_clear()
+            .args(args)
+            .output()
+            .unwrap()
+    };
+
+    let out = run_copy(&["--version"]);
+    assert!(out.status.success());
+    assert!(copy.exists(), "removed without --remove-self");
+
+    let out = run_copy(&["--remove-self", "--version"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(String::from_utf8_lossy(&out.stdout).starts_with("heldkeys "));
+    assert!(
+        out.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(!copy.exists(), "--remove-self left the binary");
+}
+
+#[test]
+fn remove_self_is_hidden_from_help() {
+    let out = run("empty", &["--help"]);
+    assert_eq!(out.code, 0);
+    assert!(!out.stdout.contains("remove-self"), "{}", out.stdout);
+}

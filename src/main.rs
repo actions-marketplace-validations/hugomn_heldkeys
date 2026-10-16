@@ -129,6 +129,10 @@ struct CommonArgs {
     /// Apply no ignore rules and no baseline: report everything.
     #[arg(long, global = true)]
     no_ignore: bool,
+    /// Delete this executable's file first. Only for the copy that --docker/--kube run in the
+    /// target; `main` acts on it before parsing, and it is declared here so clap accepts it.
+    #[arg(long, global = true, hide = true)]
+    remove_self: bool,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -149,6 +153,14 @@ enum FailOnArg {
 }
 
 fn main() -> ExitCode {
+    // The copy that `scan --docker/--kube` runs in a target deletes its own
+    // file before anything that could fail or exit (clap's --version
+    // included), so a run that is killed later cannot leave it behind.
+    if remote::wants_remove_self(std::env::args_os().skip(1))
+        && let Err(e) = remote::remove_self()
+    {
+        eprintln!("{}: warning: {e}", heldkeys::TOOL_NAME);
+    }
     // clap exits with code 2 on usage errors, matching our contract.
     let cli = Cli::parse();
     match run(cli) {

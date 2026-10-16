@@ -69,11 +69,29 @@ heldkeys scan --docker agent-box --binary ./heldkeys-linux-x86_64
 heldkeys scan --docker agent-box --binary ./heldkeys-linux-x86_64 --format json --fail-on high
 ```
 
-This finds the container's OS and CPU (`uname -sm` inside it, or the image metadata if there is no `uname`), checks that the binary you are about to copy matches, `docker cp`s it to `/tmp/heldkeys-<random>`, runs `scan --format json` there, removes the copy and renders the result on your side in any `--format`. `--fail-on` applies locally. If the binary you run *is* a matching Linux build, `--binary` is not needed.
+This finds the container's OS and CPU (`uname -sm` inside it, or the image metadata if there is no `uname`), checks that the binary you are about to copy matches, `docker cp`s it to `/tmp/heldkeys-<random>`, runs `scan --format json` there, makes sure the copy is gone (see [what happens to the copy](#what-happens-to-the-copy)) and renders the result on your side in any `--format`. `--fail-on` applies locally. If the binary you run *is* a matching Linux build, `--binary` is not needed.
 
-Three things to know. `docker exec` runs with the environment from the image and `docker run`, not with variables the entrypoint script exported later; when those matter, use the entrypoint preflight. Removing the copy needs `rm` in the image; without it heldkeys warns and leaves the file behind. And `docker` (like `kubectl` below) is found through your `PATH` and inherits your environment, so run it from a shell whose `PATH` you trust.
+Two things to know. `docker exec` runs with the environment from the image and `docker run`, not with variables the entrypoint script exported later; when those matter, use the entrypoint preflight. And `docker` (like `kubectl` below) is found through your `PATH` and inherits your environment, so run it from a shell whose `PATH` you trust.
 
 The container is treated as hostile: every command is killed after 120 seconds, its output is capped, and everything it sends back (the `uname` output, error messages, the JSON report) is made inert before it reaches your terminal. The [threat model](threat-model.md) has the details.
+
+### What happens to the copy
+
+The copy runs as `/tmp/heldkeys-<random> --remove-self scan ...`. `--remove-self` is a hidden flag that makes heldkeys delete its own file before it reads any other argument; Linux lets a running program do that, and the program keeps running from memory. So once the copy has started, its file is gone, whatever then happens to the scan or to the heldkeys on your side.
+
+heldkeys still runs `rm -f` on that exact path after the scan (in Docker as root, `docker exec -u 0 <container> rm -f /tmp/heldkeys-<random>`, see below), for a copy that never started (a `noexec` `/tmp`, a dynamically linked build whose loader is missing). It also runs it after a `docker cp` or `kubectl cp` that failed, since a copy that failed partway may have written part of the file. Ctrl-C or SIGTERM during the copy or the scan stops that step and still runs the `rm -f`, then exits with an error; a second Ctrl-C exits at once, without cleaning up.
+
+What can still leave the file behind:
+
+- **heldkeys on your side dies without cleaning up** (SIGKILL, a crash, the machine going down) after `docker cp` or `kubectl cp` started writing the file and before the copied binary started. That is the length of the copy plus one `docker exec` or `kubectl exec` round trip. Once the copied binary is running, killing heldkeys no longer matters.
+- **The copy cannot start, and the image has no `rm`** (distroless, scratch). heldkeys warns and names the path.
+- **A Docker container that runs as a non-root user, on a runtime that refuses `docker exec -u 0`** (see the next paragraph). heldkeys warns and names the path.
+
+Containers that run as a non-root user are covered too. `docker cp` creates the file owned by root, and `/tmp` is normally sticky, so the copy cannot delete itself there; that is why the Docker `rm -f` runs as root (`-u 0`). It removes only the one path heldkeys created, never a pattern. A runtime or policy that refuses `docker exec -u 0` leaves the file in that case, and heldkeys warns and names the path. `kubectl cp` writes the file as the container's own user, so in pods both the copy and a plain `rm -f` can delete it.
+
+When the `rm -f` fails after a scan that ran, heldkeys cannot tell whether the copy deleted itself, so it warns that it could not confirm the file is gone. A failed cleanup after a failed copy or scan is part of the error message.
+
+`--binary` must point at heldkeys 0.2.1 or later: older builds do not know `--remove-self` and refuse to run.
 
 ## Kubernetes
 
@@ -88,7 +106,7 @@ spec:
       emptyDir: {}
   initContainers:
     - name: heldkeys-install
-      image: your-registry/heldkeys:0.2.0     # any image that contains the static binary
+      image: your-registry/heldkeys:0.2.1     # any image that contains the static binary
       command: ["cp", "/usr/local/bin/heldkeys", "/heldkeys/heldkeys"]
       volumeMounts:
         - { name: heldkeys, mountPath: /heldkeys }
@@ -108,7 +126,7 @@ A failing preflight makes the container exit with status 1, so the pod goes into
 heldkeys scan --kube agent-7f9c -n sandboxes -c agent --binary ./heldkeys-linux-x86_64
 ```
 
-Same flow as `--docker`, through `kubectl cp` and `kubectl exec`. `-n` and `-c` are passed to kubectl as given. `kubectl cp` needs `tar` in the container. If `uname` is missing, the CPU is read from the node the pod runs on, which needs permission to `get` nodes.
+Same flow as `--docker`, through `kubectl cp` and `kubectl exec`, including [what happens to the copy](#what-happens-to-the-copy). `-n` and `-c` are passed to kubectl as given. `kubectl cp` needs `tar` in the container. If `uname` is missing, the CPU is read from the node the pod runs on, which needs permission to `get` nodes.
 
 ## Hosted sandboxes
 
