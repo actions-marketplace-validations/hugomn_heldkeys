@@ -235,8 +235,10 @@ enum Action {
 
 fn action(f: &Finding) -> Action {
     let named = match (f.check, f.rule) {
+        ("dotenv", "HK-DOTENV-003") => "dotenv-history",
         ("dotenv", _) => "dotenv",
         ("aws", "HK-AWS-001") => "aws-static",
+        ("aws", "HK-AWS-007" | "HK-AWS-008") => "aws-cache",
         ("env", "HK-ENV-003") if f.lifetime == crate::finding::Lifetime::LongLived => "aws-static",
         ("env", _) => "env",
         ("aws", _) => "aws",
@@ -254,6 +256,8 @@ fn action(f: &Finding) -> Action {
         ("ssh-agent", "HK-SSH-002") => "ssh-key",
         ("ssh-agent", _) => "ssh-agent",
         ("mcp", _) => "mcp",
+        ("ai-logins", _) => "ai-logins",
+        ("cli-logins", _) => "cli-logins",
         ("docker-socket", _) => "docker-socket",
         ("k8s-service-account", _) => "k8s",
         _ => return Action::Fix(f.fix.clone()),
@@ -338,7 +342,12 @@ fn step_text(action: &Action, r: &Reach) -> String {
             plural(n, "credential", "credentials")
         ),
         "aws-static" => "Replace static AWS keys with SSO (aws configure sso) or an assumed role, then deactivate them.".to_string(),
+        "dotenv-history" => format!(
+            "Delete the editor .history folders holding {}, and exclude .env files from the Local History extension.",
+            plural(r.files.len(), "copy of a .env file", "copies of .env files")
+        ),
         "aws" => "Give agents their own narrowly scoped AWS role, with short sessions.".to_string(),
+        "aws-cache" => "Clear cached AWS sessions (~/.aws/cli/cache, awsume --clean) before handing a shell to an agent.".to_string(),
         "gcloud" => "Revoke gcloud logins agents do not need (gcloud auth revoke, gcloud auth application-default revoke).".to_string(),
         "azure" => "Sign out of the Azure CLI where agents run (az logout), or give agents their own identity.".to_string(),
         "kube" => "Give agents a kubeconfig with a namespaced, read-only user, or none at all.".to_string(),
@@ -361,6 +370,14 @@ fn step_text(action: &Action, r: &Reach) -> String {
         "mcp" => format!(
             "Move {} out of MCP configs into the client's secret prompt or a credential helper.",
             plural(n, "token", "tokens")
+        ),
+        "ai-logins" => format!(
+            "Log out of AI tools where other agents run, or give each agent its own scoped key ({}).",
+            plural(n, "credential", "credentials")
+        ),
+        "cli-logins" => format!(
+            "Log out of developer platform CLIs agents do not need, or use scoped, expiring tokens ({}).",
+            plural(n, "credential", "credentials")
         ),
         "docker-socket" => "Do not expose the Docker socket where agents run.".to_string(),
         "k8s" => "Turn off automountServiceAccountToken for agent pods.".to_string(),

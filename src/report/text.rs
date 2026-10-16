@@ -28,6 +28,10 @@
 //! title, place and fingerprint, and the rest (lifetime, access, detail)
 //! after them or, when the line would be too long, on dimmed lines below.
 //!
+//! Findings an ignore rule or the baseline left out are never hidden: an
+//! "Ignored" section lists every ignore rule that matched, with its reason
+//! and file, and with `--details` every finding it left out.
+//!
 //! Lines fit `TextOptions::width`. Paths are cut in the middle when they do
 //! not fit (`~/workspace/acme…/apps/web/.env`); fingerprints never are.
 
@@ -55,7 +59,19 @@ const MAX_NOTES: usize = 3;
 pub fn render(report: &Report, opts: &TextOptions) -> String {
     let summary = report.summary();
     if report.findings.is_empty() {
-        return format!("{}\n", summary.line());
+        if !has_ignored(report) {
+            return format!("{}\n", summary.line());
+        }
+        let mut out = Out {
+            text: String::new(),
+            opts: *opts,
+        };
+        ignored(&mut out, report);
+        out.blank();
+        for line in fit_sentences(&summary.line(), opts.width) {
+            out.line(&paint(&line, Style::new().bold(), opts.color));
+        }
+        return out.text.trim_start_matches('\n').to_string();
     }
     let digest = digest::digest(report);
     let mut out = Out {
@@ -191,6 +207,7 @@ fn overview(out: &mut Out, report: &Report, digest: &Digest) {
     }
     notes(out, report, digest, MAX_NOTES);
     next_steps(out, digest);
+    ignored(out, report);
     out.blank();
     let command = match report.mode {
         Mode::Scan => crate::TOOL_NAME.to_string(),
@@ -417,12 +434,119 @@ fn details(out: &mut Out, report: &Report, digest: &Digest) {
         shared_all(out, report, digest);
     }
     next_steps(out, digest);
+    ignored(out, report);
     out.blank();
 }
 
 /// Every shared secret, for `--details`.
 fn shared_all(out: &mut Out, report: &Report, digest: &Digest) {
     shared(out, report, digest, usize::MAX);
+}
+
+/// Whether there is anything for the "Ignored" section.
+fn has_ignored(report: &Report) -> bool {
+    !report.suppressed.is_empty() || !report.suppression.notices.is_empty()
+}
+
+/// "Ignored": how many findings each source left out, every ignore rule
+/// that matched (rule, path, count, reason, file, expiry), warnings about
+/// where the rules came from, and with `--details` every finding left out.
+/// A reviewer sees an ignore that a pull request added here.
+fn ignored(out: &mut Out, report: &Report) {
+    if !has_ignored(report) {
+        return;
+    }
+    out.heading("Ignored");
+    if let Some(line) = ignored_counts(report) {
+        out.wrapped("  ", 4, &line, false);
+    }
+    for hit in &report.suppression.hits {
+        let ig = &hit.ignore;
+        let mut text = ig.rule.clone();
+        if let Some(path) = &ig.path {
+            text.push_str(&format!(" at {path}"));
+        }
+        if let Some(location) = &ig.location {
+            text.push_str(&format!(" at exactly {location}"));
+        }
+        text.push_str(&format!(
+            ": {}; {} ({}",
+            plural(hit.findings, "finding", "findings"),
+            ig.reason,
+            ig.source
+        ));
+        if let Some(day) = ig.expires {
+            text.push_str(&format!(", expires {day}"));
+        }
+        text.push(')');
+        out.wrapped("  ", 4, &text, false);
+    }
+    for notice in &report.suppression.notices {
+        out.wrapped("  ", 4, &format!("Warning: {notice}"), false);
+    }
+    if !out.opts.details {
+        return;
+    }
+    // One line per finding (severity, title, location cut to fit,
+    // fingerprint), then the rule and the reason, dimmed.
+    let opts = out.opts;
+    for s in &report.suppressed {
+        let f = &s.finding;
+        let fingerprint = f
+            .fingerprint
+            .as_deref()
+            .map(|fp| format!("  {fp}"))
+            .unwrap_or_default();
+        let (title, _) = fit_title(&f.title, MAX_TITLE_WIDTH.min(opts.width * 2 / 5));
+        let lead = format!("    {}{title}  ", pad(tag(f.severity), 8));
+        let room = opts
+            .width
+            .saturating_sub(lead.chars().count() + fingerprint.chars().count())
+            .max(16);
+        let location = fit_location(&shown_location(report, &f.location), room);
+        out.line(&format!("{lead}{location}{fingerprint}"));
+        out.wrapped(
+            &" ".repeat(12),
+            12,
+            &format!("{}: {}", f.rule, s.reason),
+            true,
+        );
+    }
+}
+
+/// "3 findings ignored by ./.heldkeys.toml, 2 in the baseline base.json".
+pub(crate) fn ignored_counts(report: &Report) -> Option<String> {
+    let mut parts = Vec::new();
+    let by_config = report
+        .suppressed
+        .iter()
+        .filter(|s| s.by == crate::suppress::By::Config)
+        .count();
+    if by_config > 0 {
+        let mut sources: Vec<&str> = report
+            .suppression
+            .hits
+            .iter()
+            .map(|h| h.ignore.source.as_str())
+            .collect();
+        sources.dedup();
+        parts.push(format!(
+            "{} ignored by {}",
+            plural(by_config, "finding", "findings"),
+            sources.join(" and ")
+        ));
+    }
+    let in_baseline = report.suppressed.len() - by_config;
+    if in_baseline > 0 {
+        let file = report.suppression.baseline.as_deref().unwrap_or("");
+        let what = if parts.is_empty() {
+            plural(in_baseline, "finding", "findings")
+        } else {
+            in_baseline.to_string()
+        };
+        parts.push(format!("{what} in the baseline {file}"));
+    }
+    (!parts.is_empty()).then(|| parts.join(", "))
 }
 
 /// One finding in `--details`: `    HIGH    Title  place  fp  ×2  (facts; detail)`.

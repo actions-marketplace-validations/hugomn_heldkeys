@@ -1,0 +1,5 @@
+# The user config: applies to local scans only.
+[[ignore]]
+rule = "HK-DOTENV-001"
+path = ".env"
+reason = "my local development key"

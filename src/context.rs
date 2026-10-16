@@ -126,6 +126,24 @@ impl Context {
         }
     }
 
+    /// `$XDG_DATA_HOME`, or `~/.local/share`. Some CLIs keep their login
+    /// here on Linux (Vercel).
+    pub fn data_dir(&self) -> PathBuf {
+        match self.var("XDG_DATA_HOME") {
+            Some(dir) => self.resolve(dir),
+            None => self.home_path(".local/share"),
+        }
+    }
+
+    /// `$XDG_CACHE_HOME`, or `~/.cache`. Hugging Face keeps its token under
+    /// it when `HF_HOME` is not set.
+    pub fn cache_dir(&self) -> PathBuf {
+        match self.var("XDG_CACHE_HOME") {
+            Some(dir) => self.resolve(dir),
+            None => self.home_path(".cache"),
+        }
+    }
+
     /// The path in environment variable `var` if set (tools let users move
     /// their config this way), otherwise `default`.
     pub fn path_from_env(&self, var: &str, default: PathBuf) -> PathBuf {

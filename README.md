@@ -24,7 +24,7 @@ heldkeys lists them for your terminal, the agent's sandbox or the CI job, withou
 
 **What it finds**
 
-- **Credentials on your machine an agent inherits:** environment variables, cloud CLI logins (AWS, gcloud, Azure, kubeconfig), package and git tokens, `.env` files, SSH keys, and tokens pasted into MCP server configs.
+- **Credentials on your machine an agent inherits:** environment variables, cloud CLI logins (AWS, gcloud, Azure, kubeconfig), AI tool logins (Codex, Claude Code, Gemini CLI, Copilot, Hugging Face), developer platform CLI logins (Vault, Terraform, Vercel, Netlify, Fly.io, Supabase, Wrangler, Stripe, Doppler, Railway, Kaggle), package and git tokens, `.env` files and their editor history copies, SSH keys, and tokens pasted into MCP server configs.
 - **AI agent risks in GitHub Actions:** agent steps on triggers anyone can fire, agents working in a fork's checkout, write tokens, extra secrets, unpinned agent actions and unrestricted shell, followed through local reusable workflows.
 - **What a sandbox or CI job really exposes:** the Docker socket, a Kubernetes service account token, the cloud metadata endpoint, OIDC, and the job's own tokens, checked from inside.
 
@@ -42,7 +42,7 @@ A single self-contained binary for Linux and macOS: read-only, no telemetry, don
 >
 > **It never sends your data anywhere.** No telemetry, no update checks, no crash reports. `--deep` is reserved for future checks that ask a credential's own issuer about it; today it does nothing.
 >
-> **It never writes to your machine.** It reads files and the environment and reports. The only file it creates is the one you name with `--output`.
+> **It never writes to your machine.** It reads files and the environment and reports. The only files it creates are the ones you name with `--output` or `--write-baseline`.
 >
 > **It touches only these things outside its own process:**
 >
@@ -54,7 +54,7 @@ A single self-contained binary for Linux and macOS: read-only, no telemetry, don
 >
 > Of an SSH private key file it reads only the first 256 bytes, enough for the header and the cipher name, and keeps nothing from them.
 >
-> **It needs nothing else.** No runtime, no daemon, no config file, no `$HOME`. It works on a read-only filesystem, and the prebuilt Linux binaries are static (musl), so you can copy one into any container.
+> **It needs nothing else.** No runtime, no daemon, no config file (an optional `.heldkeys.toml` only lists accepted risks), no `$HOME`. It works on a read-only filesystem, and the prebuilt Linux binaries are static (musl), so you can copy one into any container.
 
 What it defends against, and what it cannot see, is in the [threat model](docs/threat-model.md).
 
@@ -143,10 +143,12 @@ Cloud CLIs (AWS, gcloud, Azure, kube)
 `heldkeys` (same as `heldkeys scan`) looks at the machine as the current process sees it:
 
 - **The environment**, by variable name (`*_TOKEN`, `*_API_KEY`, `DATABASE_URL`, ...) and by value (`ghp_`, `github_pat_`, `AKIA`, `sk-ant-`, `sk-proj-`, `xoxb-`, `npm_`, ...).
-- **Cloud CLIs**: AWS profiles (static keys versus SSO, roles and `credential_process`), gcloud logins and application default credentials, Azure CLI token caches and service principals, kubeconfig users.
+- **Cloud CLIs**: AWS profiles (static keys versus SSO, roles and `credential_process`), cached AWS sessions (`~/.aws/cli/cache` and awsume's cache, with their expiry), aws-vault and Granted file keyrings, gcloud logins and application default credentials, Azure CLI token caches and service principals, kubeconfig users.
+- **AI tool logins**: Codex's `auth.json` (API key or ChatGPT login), Claude Code's `.credentials.json` (Linux; on macOS the login is in the keychain, which heldkeys never reads) and the `env` block and `apiKeyHelper` of its settings, Gemini CLI's OAuth login and `~/.gemini/.env`, GitHub Copilot's `apps.json` and `hosts.json`, Hugging Face tokens.
+- **Developer platform CLIs**: the logins that Vault (`~/.vault-token`), Terraform, Vercel, Netlify, Fly.io, Supabase, Cloudflare Wrangler, Stripe (test-mode keys are Low), Doppler, Railway and Kaggle keep on disk, on macOS and Linux paths, honouring `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, `HF_HOME` and `KAGGLE_CONFIG_DIR`.
 - **Package and git credentials**: `.netrc`, `.git-credentials`, git credential helpers, the GitHub CLI login, `.npmrc`, `.pypirc`, Cargo's `credentials.toml`, Docker registry logins.
 - **Git config**: tokens in `url.<base>.insteadOf` rewrites, `http.extraheader` and remote URLs, in `~/.gitconfig`, `~/.config/git/config` and the project's `.git/config`.
-- **The project**: `.env*` files under the working directory, gitignored ones included, because `.gitignore` keeps files out of git, not away from an agent. The walk goes 4 levels deep and skips dependency directories such as `node_modules`, `vendor` and `.venv`.
+- **The project**: `.env*` files under the working directory, gitignored ones included, because `.gitignore` keeps files out of git, not away from an agent. The walk goes 4 levels deep and skips dependency directories such as `node_modules`, `vendor` and `.venv`. Copies that VS Code's Local History extension keeps in `.history/` (`.env_20260507230125`) are reported too, as editor history copies.
 - **SSH**: keys loaded in `ssh-agent` (public fingerprints only) and private keys without a passphrase.
 - **MCP servers**: tokens in the env, args, URLs and headers of MCP server configs for Claude Desktop, Claude Code, Cursor, VS Code, Windsurf, Zed, Codex and Gemini CLI, in your home and in the project. A project-level config (`.mcp.json`, `.cursor/mcp.json`, ...) is also noted, because opening the directory starts its servers.
 - **The host around it**: a reachable Docker socket, a mounted Kubernetes service account token, the cloud metadata endpoint.
@@ -162,6 +164,7 @@ heldkeys --fail-on long-lived-write    # exit 1 if anything long-lived can write
 heldkeys --strict                      # also exit 1 when something could not be analysed (HK-READ-001)
 heldkeys --details                     # every finding, grouped by place and file (-v)
 heldkeys --quiet                       # only the summary line
+heldkeys --no-ignore                   # also show what .heldkeys.toml and --baseline leave out
 heldkeys checks                        # every check and rule, and what each one reads
 ```
 
@@ -251,7 +254,7 @@ jobs:
           sarif: true
 ```
 
-`@v0` is the moving major tag, available from v0.1.1. For anything that matters, pin the action to a full commit SHA with the version in a comment (`hugomn/heldkeys@<full-commit-sha> # v0.1.1`). The step fails on a High finding by default; `fail-on: none` reports without failing. All inputs and outputs, and how to run it inside the agent's own job, are in [docs/github-action.md](docs/github-action.md). Without the action, in any CI:
+`@v0` is the moving major tag, available from v0.1.1. For anything that matters, pin the action to a full commit SHA with the version in a comment (`hugomn/heldkeys@<full-commit-sha> # v0.2.0`). The step fails on a High finding by default; `fail-on: none` reports without failing. All inputs and outputs, and how to run it inside the agent's own job, are in [docs/github-action.md](docs/github-action.md). Without the action, in any CI:
 
 ```sh
 heldkeys ci --format markdown --fail-on none >> "$GITHUB_STEP_SUMMARY"
@@ -287,6 +290,34 @@ Here is the top of a real job summary, from `heldkeys ci --format markdown` on t
 > 3. Pin the action to a full commit SHA with the version in a comment \(uses: `owner/action@<sha>` \# v1.2.3\).
 
 heldkeys only looks at what AI agents can reach. For everything else in your workflows, such as template injection, cache poisoning and unpinned third-party actions in general, use [zizmor](https://github.com/zizmorcore/zizmor). The two are meant to run side by side.
+
+## Ignoring findings and baselines
+
+To keep heldkeys in CI while you work through what it found, accept the risks you have reviewed in a `.heldkeys.toml` at the root of the scanned directory, or start from a baseline so that only new findings fail the build. Nothing is dropped silently: the summary line says how many findings were left out (`(4 ignored by .heldkeys.toml, 2 in the baseline)`), the text and Markdown reports list every ignore rule that matched with its reason, `--details` lists the findings themselves, JSON has a `suppressed` list, and SARIF marks those results as suppressed with the reason as justification. `--no-ignore` shows everything.
+
+```toml
+# .heldkeys.toml
+[[ignore]]
+rule = "HK-WF-005"                      # required: a rule id, or a prefix such as "HK-WF-*"
+path = ".github/workflows/claude.yml"   # optional: glob on the file the finding is in (* and ?)
+reason = "pinned via Renovate"          # required, not empty
+expires = "2027-01-31"                  # optional: after this day it stops applying, with a warning
+```
+
+`path` is matched only against the file a finding is in (relative to the scanned directory, without a line number), never against the rest of its location: job ids, `uses:` values and variable names are text the scanned repository picks, so a job named `fixtures-bot` does not fall under `path = "*fixtures*"`. `*` matches any run of characters, `/` included. A finding that is in no file, such as an environment variable, can be named with `location = "env: GITHUB_TOKEN"` instead, compared exactly with the location in the report (without a line number). Unknown keys, a missing reason, a bad date and a pattern that would match every rule (`*` or `HK-*`) without a `location` or a `path` that names something other than wildcards are errors (exit 2), so a typo cannot silently ignore nothing, or everything. For local scans, `~/.config/heldkeys/config.toml` is read as well. `--config <file>` reads only that file and `--no-config` reads none.
+
+A baseline is a previous `--format json` report. A finding is in it when the rule, the location (relative to the scanned directory, without line numbers) and the fingerprint match, and it is no worse than it was then: severity no higher, access no wider, lifetime no longer (unknown counts as wider than read and longer than short-lived). A finding that got worse in place, such as an agent the baseline accepted as gated that a pull request opens to everyone, is reported again with "was medium in the baseline" in its detail. Secret values play no part. In CI:
+
+```sh
+# Once, on the default branch: accept what is there today.
+heldkeys ci --write-baseline heldkeys-baseline.json --fail-on none --quiet
+git add heldkeys-baseline.json .heldkeys.toml
+
+# Every run after that fails only on new findings.
+heldkeys ci --baseline heldkeys-baseline.json
+```
+
+In a pull request both files come from the pull request's own checkout, so the pull request can add an ignore rule for the risk it introduces. heldkeys shows every rule that matched, and in the CI run of a pull request (GitHub Actions on `pull_request` or an untrusted trigger) or a GitLab merge request pipeline it says so everywhere: the summary line reads "(2 ignored by a file the pull request can change)", and a warning naming the file goes to stderr, the text and Markdown reports, JSON `notices` and SARIF tool notifications. Protect both files with CODEOWNERS, or pass `--config` and `--baseline` copies checked out from the default branch; see [docs/github-action.md](docs/github-action.md#ignore-rules-and-baselines).
 
 ## In sandboxes
 
@@ -339,7 +370,7 @@ Every finding has a stable rule id, a severity, a lifetime (long-lived, short-li
 Severity follows one rule of thumb. **High**: long-lived with write access, or unknown access on a cloud or source-control credential. **Medium**: short-lived with write access, long-lived read access, or an SSH key loaded in an agent. **Low**: test-mode keys and narrow read-only tokens. **Info**: context, such as a reachable metadata endpoint or a file that could not be read; it never counts as a credential. "By format" means the token format decides: High for long-lived cloud, source-control and AI provider keys, Medium for short-lived ones, Low for test-mode keys.
 
 <details>
-<summary><b>Local rules</b> (55), for <code>heldkeys scan</code> and <code>heldkeys preflight</code></summary>
+<summary><b>Local rules</b> (76), for <code>heldkeys scan</code> and <code>heldkeys preflight</code></summary>
 
 | Rule | Check | What it detects | Default severity |
 |---|---|---|---|
@@ -353,6 +384,9 @@ Severity follows one rule of thumb. **High**: long-lived with write access, or u
 | [HK-AWS-005](docs/rules/HK-AWS-005.md) | `aws` | AWS profile that assumes a role | Medium |
 | [HK-AWS-006](docs/rules/HK-AWS-006.md) | `aws` | AWS profile that mints credentials with credential_process | Medium |
 | [HK-AWS-007](docs/rules/HK-AWS-007.md) | `aws` | Cached assumed-role credentials in ~/.aws/cli/cache | Medium |
+| [HK-AWS-008](docs/rules/HK-AWS-008.md) | `aws` | Cached AWS session credentials in the awsume cache | Medium |
+| [HK-AWS-009](docs/rules/HK-AWS-009.md) | `aws` | AWS keys in an aws-vault file keyring | Low, or High with the passphrase in the environment |
+| [HK-AWS-010](docs/rules/HK-AWS-010.md) | `aws` | Granted configured to keep AWS credentials in a file keyring | Low |
 | [HK-GCP-001](docs/rules/HK-GCP-001.md) | `gcloud` | gcloud stored login refresh tokens | High |
 | [HK-GCP-002](docs/rules/HK-GCP-002.md) | `gcloud` | Application default credentials with a user refresh token | High |
 | [HK-GCP-003](docs/rules/HK-GCP-003.md) | `gcloud` | Google service account key file | High |
@@ -378,8 +412,20 @@ Severity follows one rule of thumb. **High**: long-lived with write access, or u
 | [HK-NPM-001](docs/rules/HK-NPM-001.md) | `npmrc` | npm registry credential in .npmrc | High |
 | [HK-PYPI-001](docs/rules/HK-PYPI-001.md) | `pypirc` | Package index password or token in ~/.pypirc | High |
 | [HK-CARGO-001](docs/rules/HK-CARGO-001.md) | `cargo-credentials` | Cargo registry token in credentials.toml | High |
+| [HK-CLI-001](docs/rules/HK-CLI-001.md) | `cli-logins` | HashiCorp Vault token in ~/.vault-token | High |
+| [HK-CLI-002](docs/rules/HK-CLI-002.md) | `cli-logins` | Terraform Cloud API token in credentials.tfrc.json | High |
+| [HK-CLI-003](docs/rules/HK-CLI-003.md) | `cli-logins` | Vercel CLI login token in auth.json | High |
+| [HK-CLI-004](docs/rules/HK-CLI-004.md) | `cli-logins` | Netlify CLI login token in config.json | High |
+| [HK-CLI-005](docs/rules/HK-CLI-005.md) | `cli-logins` | Fly.io CLI access token in config.yml | High |
+| [HK-CLI-006](docs/rules/HK-CLI-006.md) | `cli-logins` | Supabase CLI access token on disk | High |
+| [HK-CLI-007](docs/rules/HK-CLI-007.md) | `cli-logins` | Cloudflare Wrangler OAuth or API token in its config | High |
+| [HK-CLI-008](docs/rules/HK-CLI-008.md) | `cli-logins` | Stripe CLI API key in config.toml | High (live mode) or Low (test mode) |
+| [HK-CLI-009](docs/rules/HK-CLI-009.md) | `cli-logins` | Doppler CLI token in .doppler.yaml | High |
+| [HK-CLI-010](docs/rules/HK-CLI-010.md) | `cli-logins` | Railway CLI login token in config.json | High |
+| [HK-CLI-011](docs/rules/HK-CLI-011.md) | `cli-logins` | Kaggle API key in kaggle.json | Medium |
 | [HK-DOTENV-001](docs/rules/HK-DOTENV-001.md) | `dotenv` | Token of a known format in a .env file | By format |
 | [HK-DOTENV-002](docs/rules/HK-DOTENV-002.md) | `dotenv` | Credential-named entry with a secret-looking value in a .env file | High or Medium |
+| [HK-DOTENV-003](docs/rules/HK-DOTENV-003.md) | `dotenv` | Credential in an editor history copy of a .env file | Same as the value: by format, or High or Medium |
 | [HK-SSH-001](docs/rules/HK-SSH-001.md) | `ssh-agent` | SSH key loaded in the running ssh-agent | Medium |
 | [HK-SSH-002](docs/rules/HK-SSH-002.md) | `ssh-agent` | SSH private key file without a passphrase | High |
 | [HK-GIT-001](docs/rules/HK-GIT-001.md) | `git-helper` | Git credential helper that stores logins in plaintext | Medium |
@@ -394,6 +440,12 @@ Severity follows one rule of thumb. **High**: long-lived with write access, or u
 | [HK-MCP-001](docs/rules/HK-MCP-001.md) | `mcp` | Token of a known format in an MCP server config (env, args, URL or headers) | By format |
 | [HK-MCP-002](docs/rules/HK-MCP-002.md) | `mcp` | Credential-named value with a secret-looking value in an MCP server config | High or Medium |
 | [HK-MCP-003](docs/rules/HK-MCP-003.md) | `mcp` | Project-level MCP config whose servers start when an agent opens the directory (context) | Info |
+| [HK-AI-001](docs/rules/HK-AI-001.md) | `ai-logins` | OpenAI Codex CLI login or API key in auth.json | High |
+| [HK-AI-002](docs/rules/HK-AI-002.md) | `ai-logins` | Claude Code OAuth login stored in .credentials.json | High |
+| [HK-AI-003](docs/rules/HK-AI-003.md) | `ai-logins` | Credential or API key helper in Claude Code settings | By format, or Medium for apiKeyHelper |
+| [HK-AI-004](docs/rules/HK-AI-004.md) | `ai-logins` | Gemini CLI OAuth login or API key on disk | High, or by format for ~/.gemini/.env |
+| [HK-AI-005](docs/rules/HK-AI-005.md) | `ai-logins` | GitHub Copilot OAuth token in apps.json or hosts.json | Medium |
+| [HK-AI-006](docs/rules/HK-AI-006.md) | `ai-logins` | Hugging Face access token on disk | Medium |
 | [HK-SOCK-001](docs/rules/HK-SOCK-001.md) | `docker-socket` | Docker daemon socket reachable by this user | High |
 | [HK-K8SSA-001](docs/rules/HK-K8SSA-001.md) | `k8s-service-account` | Readable Kubernetes service account token | High |
 | [HK-META-001](docs/rules/HK-META-001.md) | `cloud-metadata` | Cloud instance metadata endpoint reachable (context) | Info |
@@ -431,7 +483,7 @@ On a self-hosted runner every `ci-runtime` finding that is not Info is rated one
 | Format | Use it for |
 |---|---|
 | `text` (default) | Terminals. A summary (fix these first, where they are, the same secret in several places, next steps) ending in a one-line verdict; `--details` lists every finding by place and file. Colour only on a TTY; `--no-color` and `NO_COLOR` turn it off. |
-| `json` | Scripts and sandbox platforms. Versioned schema, `"schema": "heldkeys/v1"`, with a `summary` object and one object per finding. |
+| `json` | Scripts and sandbox platforms. Versioned schema, `"schema": "heldkeys/v1"`, with a `summary` object, one object per finding, and a `suppressed` list of what ignore rules and the baseline left out. Also the baseline format. |
 | `markdown` | Pull request comments and `$GITHUB_STEP_SUMMARY`. The same summary first, then every finding by severity; rule ids link to their pages, details fold, and the report keeps itself under GitHub's comment size limit. |
 | `sarif` | GitHub code scanning. SARIF 2.1.0 with every rule of every check, each linked to its page; CI findings point at the workflow file and line. |
 

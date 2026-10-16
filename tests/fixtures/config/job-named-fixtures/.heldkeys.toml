@@ -1,0 +1,4 @@
+[[ignore]]
+rule = "HK-*"
+path = "*fixtures*"
+reason = "test fixtures are fake"

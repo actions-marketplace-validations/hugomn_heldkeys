@@ -1,0 +1,5 @@
+DefaultBrowser = "STDOUT"
+
+[Keyring]
+  Backend = "file"
+  FileDir = "~/.granted/keyring"

@@ -87,6 +87,13 @@ fn cases(tmp: &Path) -> Vec<(String, PathBuf, PathBuf)> {
         fixture("mcp/home"),
         fixture("mcp/project"),
     ));
+    // CLI logins in every format (JSON, TOML, YAML, INI, plain, .env), AWS
+    // session caches, and editor history copies of .env files.
+    cases.push((
+        "logins".to_string(),
+        fixture("logins/home"),
+        fixture("logins/project"),
+    ));
     // The full fixture plus an SSH key, in a temporary copy.
     let ssh_home = tmp.join("full-with-ssh");
     copy_dir(&fixture("full"), &ssh_home);
@@ -199,6 +206,61 @@ fn preflight_never_leaks() {
             assert_ne!(out.code, 2, "{label}: {}", out.stderr);
             assert_no_leak(&label, &out.stdout, &secrets);
             assert_no_leak(&label, &out.stderr, &secrets);
+        }
+    }
+}
+
+/// Findings left out by an ignore rule or a baseline are still listed (the
+/// "Ignored" section, JSON `suppressed`, SARIF results with suppressions):
+/// they must be as redacted as the rest.
+#[test]
+fn ignored_findings_never_leak() {
+    let secrets = all_secrets();
+    let tmp = tempfile::tempdir().unwrap();
+    // One ignore rule per declared rule id: a single catch-all is refused.
+    let mut text = String::new();
+    for check in heldkeys::checks::all_checks() {
+        for rule in check.rules() {
+            text.push_str(&format!(
+                "[[ignore]]\nrule = \"{}\"\nreason = \"redaction test: everything is ignored\"\n",
+                rule.id
+            ));
+        }
+    }
+    let config = tmp.path().join("ignore-all.toml");
+    std::fs::write(&config, text).unwrap();
+    let config = config.to_str().unwrap();
+    for (name, home, cwd) in cases(tmp.path()) {
+        let baseline = tmp.path().join(format!("{name}-baseline.json"));
+        let baseline = baseline.to_str().unwrap();
+        for mode in ["scan", "ci"] {
+            let written = run_in(
+                &home,
+                &cwd,
+                &[mode, "--write-baseline", baseline, "--quiet"],
+                ENV_SECRETS,
+            );
+            assert_ne!(written.code, 2, "{name} {mode}: {}", written.stderr);
+            assert_no_leak(
+                &format!("{name} {mode} baseline file"),
+                &std::fs::read_to_string(baseline).unwrap(),
+                &secrets,
+            );
+            for format in FORMATS {
+                for extra in [["--config", config], ["--baseline", baseline]] {
+                    let mut args = vec![mode, "--format", format, "--no-color", "--details"];
+                    args.extend(extra);
+                    let out = run_in(&home, &cwd, &args, ENV_SECRETS);
+                    let label = format!("{name} {mode} {format} {}", extra[0]);
+                    assert_eq!(
+                        out.code, 0,
+                        "{label}: everything is suppressed: {}",
+                        out.stderr
+                    );
+                    assert_no_leak(&label, &out.stdout, &secrets);
+                    assert_no_leak(&label, &out.stderr, &secrets);
+                }
+            }
         }
     }
 }

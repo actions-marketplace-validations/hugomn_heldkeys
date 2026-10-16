@@ -1,0 +1,3 @@
+[[ignore]]
+rule = "HK-WF-005"
+reasons = "a typo: the key is reason"

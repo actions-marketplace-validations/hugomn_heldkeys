@@ -11,10 +11,12 @@ use std::process::ExitCode;
 use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum};
 
 use heldkeys::checks::{self, Check, read_errors};
+use heldkeys::config::{self, Date, Ignore};
 use heldkeys::context::Context;
 use heldkeys::finding::FailOn;
 use heldkeys::report::{self, Format, Mode, Report};
 use heldkeys::sandbox::{preflight, remote};
+use heldkeys::{baseline, suppress};
 
 #[derive(Parser)]
 #[command(
@@ -110,6 +112,23 @@ struct CommonArgs {
     /// analysed (HK-WF-007). Either may hide a credential or a risk.
     #[arg(long, global = true)]
     strict: bool,
+    /// Read ignore rules from FILE only, instead of .heldkeys.toml in --path (and, for local
+    /// scans, ~/.config/heldkeys/config.toml).
+    #[arg(long, global = true, value_name = "FILE", conflicts_with = "no_config")]
+    config: Option<PathBuf>,
+    /// Read no config file: no ignore rules.
+    #[arg(long, global = true)]
+    no_config: bool,
+    /// Leave out findings already in FILE, a previous --format json report or --write-baseline
+    /// file. New findings still count for --fail-on.
+    #[arg(long, global = true, value_name = "FILE")]
+    baseline: Option<PathBuf>,
+    /// Write every finding of this run to FILE as a baseline (the --format json report).
+    #[arg(long, global = true, value_name = "FILE")]
+    write_baseline: Option<PathBuf>,
+    /// Apply no ignore rules and no baseline: report everything.
+    #[arg(long, global = true)]
+    no_ignore: bool,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -163,6 +182,7 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
         Mode::Ci => checks::ci_checks(),
     };
     let report = Report::new(mode, checks::run_all(&checks, &ctx)).with_origin(&origin(&ctx));
+    let report = suppress_findings(report, &common, Some(&ctx), mode)?;
     emit(&report, &common, ctx.env.contains_key("NO_COLOR"))?;
     let default = match mode {
         Mode::Scan => FailOn::None,
@@ -245,6 +265,7 @@ fn run_preflight(common: &CommonArgs) -> Result<ExitCode, String> {
     let ctx = context(common)?;
     let report = Report::new(Mode::Scan, checks::run_all(&checks::local_checks(), &ctx))
         .with_origin(&origin(&ctx));
+    let report = suppress_findings(report, common, Some(&ctx), Mode::Scan)?;
     let verdict = preflight::verdict(
         &report,
         fail_on(common.fail_on, FailOn::High),
@@ -301,12 +322,131 @@ fn remote_scan(args: &ScanArgs, common: &CommonArgs) -> Result<ExitCode, String>
         eprintln!("{}: warning: {warning}", heldkeys::TOOL_NAME);
     }
     let report = Report::new(Mode::Scan, result.findings);
+    let report = suppress_findings(report, common, None, Mode::Scan)?;
     emit(&report, common, std::env::var_os("NO_COLOR").is_some())?;
     Ok(exit_code(
         fail_on(common.fail_on, FailOn::None),
         common.strict,
         &report,
     ))
+}
+
+/// Writes `--write-baseline`, then applies the ignore rules and the
+/// `--baseline` (unless `--no-ignore`): what they cover moves to
+/// `report.suppressed`, counted and listed, out of `--fail-on`'s reach.
+///
+/// `ctx` is `None` for `--docker`/`--kube` scans, whose `--path` is inside
+/// the target: only an explicit `--config` applies there.
+fn suppress_findings(
+    mut report: Report,
+    common: &CommonArgs,
+    ctx: Option<&Context>,
+    mode: Mode,
+) -> Result<Report, String> {
+    let (ignores, checkout_config) = if common.no_ignore {
+        (Vec::new(), None)
+    } else {
+        load_ignores(common, ctx, mode)?
+    };
+    let baseline = match &common.baseline {
+        Some(path) if !common.no_ignore => Some(baseline::load(path, &shown_path(path, ctx))?),
+        _ => None,
+    };
+    // Every finding of this run, before any is left out, so refreshing a
+    // baseline keeps what the old one accepted.
+    if let Some(path) = &common.write_baseline {
+        write_file(path, &report::json::render(&report))?;
+    }
+    let today = Date::today();
+    for ig in ignores.iter().filter(|i| i.is_expired(today)) {
+        eprintln!(
+            "{}: warning: {}: the ignore rule for {} expired on {}; its findings are reported again",
+            heldkeys::TOOL_NAME,
+            ig.source,
+            ig.rule,
+            ig.expires.map(|d| d.to_string()).unwrap_or_default(),
+        );
+    }
+    suppress::apply(&mut report, &ignores, baseline.as_ref(), today);
+
+    // In the CI run of a pull or merge request, files in the checkout are
+    // the change's own: say so in every format and on stderr, and name them
+    // as such in the summary line.
+    if mode == Mode::Ci
+        && let Some(ctx) = ctx
+        && let Some((change, run)) = suppress::untrusted_change(|name| ctx.var(name))
+    {
+        let baseline_file = match (&common.baseline, &baseline) {
+            (Some(path), Some(b)) if suppress::in_checkout(&ctx.cwd, path) => {
+                Some(b.source.as_str())
+            }
+            _ => None,
+        };
+        let s = &mut report.suppression;
+        s.config_from_change = checkout_config.is_some().then_some(change);
+        s.baseline_from_change = baseline_file.is_some().then_some(change);
+        s.notices =
+            suppress::checkout_notices(change, &run, checkout_config.as_deref(), baseline_file);
+        for notice in &s.notices {
+            eprintln!("{}: warning: {notice}", heldkeys::TOOL_NAME);
+        }
+    }
+    Ok(report)
+}
+
+/// The ignore rules for this run, and the config file's name when ignore
+/// rules came from the scanned checkout (see `suppress::in_checkout`).
+///
+/// `--no-config`: none. `--config FILE`: that file only, which must exist.
+/// Otherwise `.heldkeys.toml` in the scanned directory, if there, plus
+/// `~/.config/heldkeys/config.toml` for local scans (not in `ci`, where the
+/// home directory is the runner's).
+fn load_ignores(
+    common: &CommonArgs,
+    ctx: Option<&Context>,
+    mode: Mode,
+) -> Result<(Vec<Ignore>, Option<String>), String> {
+    if common.no_config {
+        return Ok((Vec::new(), None));
+    }
+    if let Some(path) = &common.config {
+        let shown = shown_path(path, ctx);
+        let ignores = config::load(path, &shown, None)?
+            .ok_or_else(|| format!("config file {shown} does not exist"))?;
+        let from_checkout = ctx
+            .filter(|ctx| !ignores.is_empty() && suppress::in_checkout(&ctx.cwd, path))
+            .map(|_| shown);
+        return Ok((ignores, from_checkout));
+    }
+    let Some(ctx) = ctx else {
+        return Ok((Vec::new(), None));
+    };
+    let mut ignores = Vec::new();
+    let mut from_checkout = None;
+    let shown = format!("./{}", config::PROJECT_FILE);
+    let project = ctx.cwd.join(config::PROJECT_FILE);
+    if let Some(found) = config::load(&project, &shown, Some(&ctx.cwd))? {
+        if !found.is_empty() {
+            from_checkout = Some(shown);
+        }
+        ignores.extend(found);
+    }
+    if mode == Mode::Scan {
+        let user = ctx.config_dir().join(config::USER_FILE);
+        if let Some(found) = config::load(&user, &ctx.display_path(&user), None)? {
+            ignores.extend(found);
+        }
+    }
+    Ok((ignores, from_checkout))
+}
+
+/// A path named on the command line, as reports show it.
+fn shown_path(path: &std::path::Path, ctx: Option<&Context>) -> String {
+    let shown = match ctx {
+        Some(ctx) => ctx.display_path(path),
+        None => path.display().to_string(),
+    };
+    heldkeys::sanitize::clip(&heldkeys::sanitize::sanitize(&shown))
 }
 
 fn write_file(path: &std::path::Path, contents: &str) -> Result<(), String> {

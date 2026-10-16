@@ -1,6 +1,6 @@
 [package]
 name = "heldkeys"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 # std::env::home_dir un-deprecated (1.86) and let-chains (1.88).
 rust-version = "1.88"
@@ -23,6 +23,9 @@ owo-colors = "4"
 regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Strict parsing of .heldkeys.toml (arrays of tables, unknown keys rejected).
+# Parsing and serde only: no writer, no ordered maps.
+toml = { version = "1", default-features = false, features = ["std", "parse", "serde"] }
 yaml-rust2 = { version = "0.13", default-features = false }
 
 # O_NONBLOCK for opening files, so a FIFO planted where a config file should be

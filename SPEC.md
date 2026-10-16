@@ -62,6 +62,25 @@ Common flags (before or after the subcommand):
   --strict         also exit 1 when something could not be analysed: a file a check looks at
                    could not be read or parsed (HK-READ-001), or a workflow could not be
                    analysed (HK-WF-007)
+  --config <file>  read ignore rules from this file only, instead of .heldkeys.toml in --path
+                   (and, for local scans, ~/.config/heldkeys/config.toml)
+  --no-config      read no config file
+  --baseline <file>
+                   leave out findings already in a previous --format json report; new
+                   findings still count for --fail-on
+  --write-baseline <file>
+                   write every finding of this run to a file, as a baseline
+  --no-ignore      apply no ignore rules and no baseline
+
+Config (.heldkeys.toml), strict: unknown keys, a missing reason, a bad date or a rule
+pattern that matches every rule without a location or a path that names more than
+wildcards are errors (exit 2):
+  [[ignore]]
+  rule = "HK-WF-005"                     # a rule id, or a prefix ending in * ("HK-WF-*")
+  path = ".github/workflows/claude.yml"  # optional glob (* and ?) on the finding's file only
+  location = "env: GITHUB_TOKEN"         # optional; the whole location, compared exactly
+  reason = "pinned via Renovate"         # required
+  expires = "2027-01-31"                 # optional; after it the rule stops applying
 
 Environment:
   HELDKEYS_NO_NET=1   skip the metadata reachability probe
@@ -132,7 +151,8 @@ The tool has to run *where the agent runs*, not next to it, because sandboxes ch
 ## Output
 
 - **text:** a summary first (the distinct credentials to fix first, counts by place, secrets found in several places, a few generic next steps), coloured, fitted to `COLUMNS` (default 100); `--details` lists every finding grouped by place and file. Then a summary line, for example "7 credentials reachable, 2 long-lived with write access. If a prompt injection can run one shell command here, it can use all of them." In `ci` mode the line counts workflow risks apart from job credentials: "3 AI agent workflow risks, 2 credentials reachable in this job."
-- **json:** a stable schema, versioned (`"schema": "heldkeys/v1"`).
+- **json:** a stable schema, versioned (`"schema": "heldkeys/v1"`). It is also the baseline format: a baseline entry matches a finding with the same rule, the same location relative to the scanned directory (`origin`) without line numbers, and the same fingerprint, when the finding is no worse (severity, access, lifetime) than the entry; one that got worse is reported, with what it was in its detail. JSON also has `notices`, warnings such as ignore rules read from the checkout of the pull request under review (also on stderr and as SARIF tool notifications).
+- **Ignored findings** (by `.heldkeys.toml` or `--baseline`) are never dropped silently: the summary line counts them ("(4 ignored by .heldkeys.toml, 2 in the baseline)"), text and Markdown list every ignore rule that matched with its reason (`--details` lists the findings), JSON has `suppressed: [{rule, location, by, reason, ...}]`, and SARIF emits them with `suppressions` (kind `external`, the reason as justification).
 - **markdown:** for PR comments and job summaries (`$GITHUB_STEP_SUMMARY`).
 - **sarif:** 2.1.0, for GitHub code scanning (CI mode).
 

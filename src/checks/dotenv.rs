@@ -9,6 +9,12 @@
 //! followed when they stay inside the working directory; one that points
 //! outside it is not read (a cloned repo must not be able to make us read
 //! files elsewhere) and is reported by `read-errors` instead.
+//!
+//! Editors keep copies too: VS Code's Local History extension saves every
+//! version of a file under `.history/`, as `.env_20260507230125` or
+//! `.env_20260507230125.local`. Those copies hold the same secrets as the
+//! file, often older ones that were never rotated, so they are read like
+//! `.env` files and reported under their own rule and title.
 
 use std::path::{Path, PathBuf};
 
@@ -34,7 +40,18 @@ const BY_NAME: Rule = Rule {
     summary: "Credential-named entry with a secret-looking value in a .env file",
 };
 
-const RULES: &[Rule] = &[KNOWN_TOKEN, BY_NAME];
+const HISTORY_COPY: Rule = Rule {
+    check: ID,
+    id: "HK-DOTENV-003",
+    summary: "Credential in an editor history copy of a .env file",
+};
+
+const RULES: &[Rule] = &[KNOWN_TOKEN, BY_NAME, HISTORY_COPY];
+
+/// The folder VS Code's Local History extension keeps copies in.
+const HISTORY_DIR: &str = ".history";
+const HISTORY_TITLE: &str = "Editor history copy of a .env file";
+const HISTORY_FIX: &str = "Delete the .history folder and add .env* to the Local History extension's local-history.exclude setting.";
 
 /// How deep below the working directory we look. Deep enough for monorepos
 /// (`apps/web/.env`), shallow enough to stay fast.
@@ -90,7 +107,7 @@ impl Check for DotenvCheck {
             max_depth,
             files: Vec::new(),
         };
-        walk.dir(&ctx.cwd, &ctx.cwd, 0);
+        walk.dir(&ctx.cwd, &ctx.cwd, 0, false);
         if walk.budget == 0 {
             ctx.note_unreadable(
                 &ctx.cwd,
@@ -101,12 +118,14 @@ impl Check for DotenvCheck {
         }
         walk.files
             .iter()
-            .flat_map(|(path, project)| {
+            .flat_map(|(path, project, history)| {
                 let id = crate::finding::identity(&project.to_string_lossy());
-                check_file(ctx, path).into_iter().map(move |mut f| {
-                    f.project_id = Some(id);
-                    f
-                })
+                check_file(ctx, path, *history)
+                    .into_iter()
+                    .map(move |mut f| {
+                        f.project_id = Some(id);
+                        f
+                    })
             })
             .collect()
     }
@@ -121,16 +140,17 @@ fn same_dir(a: &Path, b: &Path) -> bool {
 }
 
 /// A bounded, depth-first walk that collects `.env*` files in sorted order,
-/// each with the project it belongs to: the closest directory above it with
-/// a `.git` (a checkout or a worktree), else the working directory.
+/// each with the project it belongs to (the closest directory above it with
+/// a `.git`, a checkout or a worktree, else the working directory) and
+/// whether it is an editor history copy.
 struct Walk {
     budget: usize,
     max_depth: usize,
-    files: Vec<(PathBuf, PathBuf)>,
+    files: Vec<(PathBuf, PathBuf, bool)>,
 }
 
 impl Walk {
-    fn dir(&mut self, dir: &Path, project: &Path, depth: usize) {
+    fn dir(&mut self, dir: &Path, project: &Path, depth: usize, in_history: bool) {
         let entries = fsutil::list_dir(dir);
         // `.git` is a directory in a checkout and a file in a worktree.
         let project = if entries.iter().any(|p| fsutil::file_name(p) == ".git") {
@@ -151,15 +171,18 @@ impl Walk {
             };
             if meta.is_dir() {
                 if !SKIP_DIRS.contains(&name.as_str()) && depth < self.max_depth {
-                    self.dir(&path, project, depth + 1);
+                    let history = in_history || name == HISTORY_DIR;
+                    self.dir(&path, project, depth + 1, history);
                 }
+            } else if in_history && history_original(&name).is_some() {
+                self.files.push((path, project.to_path_buf(), true));
             } else if is_dotenv_name(&name) {
                 // Symlinks are checked when the file is read: inside the
                 // working directory they are followed, outside they are
                 // recorded as unreadable. So are FIFOs, sockets and devices
                 // with a .env name: the reader records them rather than
                 // the walk skipping them silently.
-                self.files.push((path, project.to_path_buf()));
+                self.files.push((path, project.to_path_buf(), in_history));
             }
         }
     }
@@ -167,6 +190,24 @@ impl Walk {
 
 fn is_dotenv_name(name: &str) -> bool {
     name == ".env" || name.starts_with(".env.")
+}
+
+/// The name of the file a Local History copy was taken from: the copy's
+/// name with its `_YYYYMMDDhhmmss` stamp removed (`.env_20260507230125.local`
+/// is a copy of `.env.local`), if that is a `.env*` name.
+fn history_original(name: &str) -> Option<String> {
+    const STAMP: usize = 14;
+    for (i, _) in name.match_indices('_') {
+        let rest = &name[i + 1..];
+        let digits = rest.chars().take_while(char::is_ascii_digit).count();
+        if digits == STAMP {
+            let original = format!("{}{}", &name[..i], &rest[STAMP..]);
+            if is_dotenv_name(&original) {
+                return Some(original);
+            }
+        }
+    }
+    None
 }
 
 /// `.env.example`, `.env.local.sample`, ...: see `TEMPLATE_MARKERS`.
@@ -186,11 +227,35 @@ fn lower(severity: Severity) -> Severity {
     }
 }
 
-fn check_file(ctx: &Context, path: &Path) -> Vec<Finding> {
+fn check_file(ctx: &Context, path: &Path, history: bool) -> Vec<Finding> {
     let Some(text) = ctx.read_project_file(path) else {
         return Vec::new();
     };
+    let findings = check_text(ctx, path, &text);
+    if !history {
+        return findings;
+    }
+    // A history copy: same values and severities as in the original file,
+    // under its own rule and title so the reader knows to delete the copy
+    // rather than move the secret. The original title becomes the detail.
     let name = fsutil::file_name(path);
+    let original = history_original(&name).unwrap_or(name);
+    findings
+        .into_iter()
+        .map(|mut f| {
+            f.rule = HISTORY_COPY.id;
+            f.detail = Some(format!("{}, in a copy of {original}", f.title));
+            f.title = HISTORY_TITLE.to_string();
+            f.fix = HISTORY_FIX.to_string();
+            f
+        })
+        .collect()
+}
+
+fn check_text(ctx: &Context, path: &Path, text: &str) -> Vec<Finding> {
+    let file_name = fsutil::file_name(path);
+    // A history copy is judged by the name of the file it copies.
+    let name = history_original(&file_name).unwrap_or(file_name);
     let template = is_template_name(&name);
     let display = ctx.display_path(path);
     let mut findings = Vec::new();
@@ -279,6 +344,15 @@ enum Line<'a> {
     Other(&'a str),
 }
 
+/// `NAME` and value of a `KEY=value` line, for other checks that read
+/// `.env`-style files (`~/.gemini/.env`).
+pub(crate) fn entry(line: &str) -> Option<(&str, &str)> {
+    match parse_line(line) {
+        Line::Entry(key, value) => Some((key, value)),
+        _ => None,
+    }
+}
+
 fn parse_line(line: &str) -> Line<'_> {
     let line = line.trim();
     if line.is_empty() || line.starts_with('#') {
@@ -364,6 +438,115 @@ mod tests {
             !locations.iter().any(|l| l.ends_with("NODE_ENV")),
             "{locations:?}"
         );
+    }
+
+    #[test]
+    fn history_copy_names() {
+        assert_eq!(
+            history_original(".env_20260507230125").as_deref(),
+            Some(".env")
+        );
+        assert_eq!(
+            history_original(".env_20260507230125.local").as_deref(),
+            Some(".env.local")
+        );
+        assert_eq!(
+            history_original(".env.production_20260507230125.local").as_deref(),
+            Some(".env.production.local")
+        );
+        assert_eq!(history_original(".env_2026050723012"), None);
+        assert_eq!(history_original("notes_20260507230125.md"), None);
+        assert_eq!(history_original(".env"), None);
+    }
+
+    #[test]
+    fn editor_history_copies() {
+        let empty = fixture("empty");
+        let ctx = Context::new(
+            empty.clone(),
+            empty,
+            fixture("logins/project"),
+            BTreeMap::new(),
+        );
+        let f = DotenvCheck.run(&ctx);
+        let shown: Vec<(&str, &str, &str, Severity)> = f
+            .iter()
+            .map(|f| (f.rule, f.title.as_str(), f.location.as_str(), f.severity))
+            .collect();
+        let history = "Editor history copy of a .env file";
+        assert_eq!(
+            shown,
+            [
+                (
+                    "HK-DOTENV-001",
+                    "OpenAI project API key",
+                    "./.env: OPENAI_API_KEY",
+                    Severity::High
+                ),
+                (
+                    "HK-DOTENV-003",
+                    history,
+                    "./.history/.env_20260401120000: OPENAI_API_KEY",
+                    Severity::High
+                ),
+                (
+                    "HK-DOTENV-003",
+                    history,
+                    "./.history/.env_20260507230125: OPENAI_API_KEY",
+                    Severity::High
+                ),
+                (
+                    "HK-DOTENV-003",
+                    history,
+                    "./.history/apps/web/.env.example_20260507230125: GITHUB_TOKEN",
+                    Severity::Medium
+                ),
+                (
+                    "HK-DOTENV-003",
+                    history,
+                    "./.history/apps/web/.env_20260507230125.local: STRIPE_SECRET_KEY",
+                    Severity::High
+                ),
+            ],
+            "{f:#?}"
+        );
+        assert_eq!(
+            f[1].detail.as_deref(),
+            Some("OpenAI project API key, in a copy of .env")
+        );
+        assert_eq!(
+            f[3].detail.as_deref(),
+            Some(
+                "GitHub personal access token (classic) in a template file, in a copy of .env.example"
+            )
+        );
+        assert!(f[1].fix.starts_with("Delete the .history folder"));
+        // A copy holding the same value as the file is the same secret.
+        assert_eq!(f[0].secret_key(), f[2].secret_key());
+        assert_ne!(f[0].secret_key(), f[1].secret_key());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_history_copies_are_recorded() {
+        let dir = tempfile::tempdir().unwrap();
+        let fifo = dir.path().join(".history/.env_20260507230125");
+        std::fs::create_dir_all(fifo.parent().unwrap()).unwrap();
+        let status = std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .unwrap();
+        assert!(status.success());
+        let ctx = Context::new(
+            dir.path().to_path_buf(),
+            fixture("empty"),
+            dir.path().to_path_buf(),
+            BTreeMap::new(),
+        );
+        assert!(DotenvCheck.run(&ctx).is_empty());
+        let problems = ctx.take_unreadable();
+        assert_eq!(problems.len(), 1, "{problems:?}");
+        assert_eq!(problems[0].0, fifo);
     }
 
     #[test]

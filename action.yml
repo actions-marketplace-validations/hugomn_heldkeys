@@ -20,7 +20,7 @@ branding:
 
 inputs:
   version:
-    description: heldkeys version to install, such as 0.1.1, or latest (the newest release).
+    description: heldkeys version to install, such as 0.2.0, or latest (the newest release).
     required: false
     default: latest
   fail-on:
@@ -45,6 +45,19 @@ inputs:
     description: Also scan tracked files on the current branch for tokens of known formats.
     required: false
     default: "false"
+  config:
+    description: >-
+      Ignore rules file to use instead of .heldkeys.toml in path, relative to the
+      workspace. Point it at a copy checked out from the default branch so a pull
+      request cannot add its own ignores.
+    required: false
+    default: ""
+  baseline:
+    description: >-
+      A previous heldkeys JSON report (heldkeys ci --write-baseline), relative to the
+      workspace. Findings already in it are listed as ignored and do not fail the step.
+    required: false
+    default: ""
 
 outputs:
   sarif-file:
@@ -125,12 +138,20 @@ runs:
         HELDKEYS_INPUT_SARIF: ${{ inputs.sarif }}
         HELDKEYS_INPUT_PATH: ${{ inputs.path }}
         HELDKEYS_INPUT_REPO_SECRETS: ${{ inputs.repo-secrets }}
+        HELDKEYS_INPUT_CONFIG: ${{ inputs.config }}
+        HELDKEYS_INPUT_BASELINE: ${{ inputs.baseline }}
       run: |
         set -euo pipefail
 
         args=(ci --path "$HELDKEYS_INPUT_PATH")
         if [ "$HELDKEYS_INPUT_REPO_SECRETS" = "true" ]; then
           args+=(--repo-secrets)
+        fi
+        if [ -n "$HELDKEYS_INPUT_CONFIG" ]; then
+          args+=(--config "$HELDKEYS_INPUT_CONFIG")
+        fi
+        if [ -n "$HELDKEYS_INPUT_BASELINE" ]; then
+          args+=(--baseline "$HELDKEYS_INPUT_BASELINE")
         fi
 
         # Job summary. --fail-on none: these runs only produce files; the last

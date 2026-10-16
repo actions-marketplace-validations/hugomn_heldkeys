@@ -1,0 +1,11 @@
+{
+  "telemetryDisabled": true,
+  "userId": "0000fakeuser",
+  "users": {
+    "0000fakeuser": {
+      "id": "0000fakeuser",
+      "name": "Fake User",
+      "auth": { "token": "nfp_FAKEFAKEnetlifyTOKEN1011", "github": {} }
+    }
+  }
+}

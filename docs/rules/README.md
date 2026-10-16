@@ -18,6 +18,9 @@ Every finding heldkeys reports carries a stable rule id. An id never changes mea
 | [HK-AWS-005](HK-AWS-005.md) | `aws` | AWS profile that assumes a role | Medium |
 | [HK-AWS-006](HK-AWS-006.md) | `aws` | AWS profile that mints credentials with credential_process | Medium |
 | [HK-AWS-007](HK-AWS-007.md) | `aws` | Cached assumed-role credentials in ~/.aws/cli/cache | Medium |
+| [HK-AWS-008](HK-AWS-008.md) | `aws` | Cached AWS session credentials in the awsume cache | Medium |
+| [HK-AWS-009](HK-AWS-009.md) | `aws` | AWS keys in an aws-vault file keyring | Low, or High with the passphrase in the environment |
+| [HK-AWS-010](HK-AWS-010.md) | `aws` | Granted configured to keep AWS credentials in a file keyring | Low |
 | [HK-GCP-001](HK-GCP-001.md) | `gcloud` | gcloud stored login refresh tokens | High |
 | [HK-GCP-002](HK-GCP-002.md) | `gcloud` | Application default credentials with a user refresh token | High |
 | [HK-GCP-003](HK-GCP-003.md) | `gcloud` | Google service account key file | High |
@@ -43,8 +46,20 @@ Every finding heldkeys reports carries a stable rule id. An id never changes mea
 | [HK-NPM-001](HK-NPM-001.md) | `npmrc` | npm registry credential in .npmrc | High |
 | [HK-PYPI-001](HK-PYPI-001.md) | `pypirc` | Package index password or token in ~/.pypirc | High |
 | [HK-CARGO-001](HK-CARGO-001.md) | `cargo-credentials` | Cargo registry token in credentials.toml | High |
+| [HK-CLI-001](HK-CLI-001.md) | `cli-logins` | HashiCorp Vault token in ~/.vault-token | High |
+| [HK-CLI-002](HK-CLI-002.md) | `cli-logins` | Terraform Cloud API token in credentials.tfrc.json | High |
+| [HK-CLI-003](HK-CLI-003.md) | `cli-logins` | Vercel CLI login token in auth.json | High |
+| [HK-CLI-004](HK-CLI-004.md) | `cli-logins` | Netlify CLI login token in config.json | High |
+| [HK-CLI-005](HK-CLI-005.md) | `cli-logins` | Fly.io CLI access token in config.yml | High |
+| [HK-CLI-006](HK-CLI-006.md) | `cli-logins` | Supabase CLI access token on disk | High |
+| [HK-CLI-007](HK-CLI-007.md) | `cli-logins` | Cloudflare Wrangler OAuth or API token in its config | High |
+| [HK-CLI-008](HK-CLI-008.md) | `cli-logins` | Stripe CLI API key in config.toml | High (live mode) or Low (test mode) |
+| [HK-CLI-009](HK-CLI-009.md) | `cli-logins` | Doppler CLI token in .doppler.yaml | High |
+| [HK-CLI-010](HK-CLI-010.md) | `cli-logins` | Railway CLI login token in config.json | High |
+| [HK-CLI-011](HK-CLI-011.md) | `cli-logins` | Kaggle API key in kaggle.json | Medium |
 | [HK-DOTENV-001](HK-DOTENV-001.md) | `dotenv` | Token of a known format in a .env file | By format |
 | [HK-DOTENV-002](HK-DOTENV-002.md) | `dotenv` | Credential-named entry with a secret-looking value in a .env file | High or Medium |
+| [HK-DOTENV-003](HK-DOTENV-003.md) | `dotenv` | Credential in an editor history copy of a .env file | Same as the value: by format, or High or Medium |
 | [HK-SSH-001](HK-SSH-001.md) | `ssh-agent` | SSH key loaded in the running ssh-agent | Medium |
 | [HK-SSH-002](HK-SSH-002.md) | `ssh-agent` | SSH private key file without a passphrase | High |
 | [HK-GIT-001](HK-GIT-001.md) | `git-helper` | Git credential helper that stores logins in plaintext | Medium |
@@ -59,6 +74,12 @@ Every finding heldkeys reports carries a stable rule id. An id never changes mea
 | [HK-MCP-001](HK-MCP-001.md) | `mcp` | Token of a known format in an MCP server config (env, args, URL or headers) | By format |
 | [HK-MCP-002](HK-MCP-002.md) | `mcp` | Credential-named value with a secret-looking value in an MCP server config | High or Medium |
 | [HK-MCP-003](HK-MCP-003.md) | `mcp` | Project-level MCP config whose servers start when an agent opens the directory (context) | Info |
+| [HK-AI-001](HK-AI-001.md) | `ai-logins` | OpenAI Codex CLI login or API key in auth.json | High |
+| [HK-AI-002](HK-AI-002.md) | `ai-logins` | Claude Code OAuth login stored in .credentials.json | High |
+| [HK-AI-003](HK-AI-003.md) | `ai-logins` | Credential or API key helper in Claude Code settings | By format, or Medium for apiKeyHelper |
+| [HK-AI-004](HK-AI-004.md) | `ai-logins` | Gemini CLI OAuth login or API key on disk | High, or by format for ~/.gemini/.env |
+| [HK-AI-005](HK-AI-005.md) | `ai-logins` | GitHub Copilot OAuth token in apps.json or hosts.json | Medium |
+| [HK-AI-006](HK-AI-006.md) | `ai-logins` | Hugging Face access token on disk | Medium |
 | [HK-SOCK-001](HK-SOCK-001.md) | `docker-socket` | Docker daemon socket reachable by this user | High |
 | [HK-K8SSA-001](HK-K8SSA-001.md) | `k8s-service-account` | Readable Kubernetes service account token | High |
 | [HK-META-001](HK-META-001.md) | `cloud-metadata` | Cloud instance metadata endpoint reachable (context) | Info |

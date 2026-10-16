@@ -1,0 +1,3 @@
+[[ignore]]
+rule = "HK-WF-005"
+path = ".github/workflows/claude.yml"

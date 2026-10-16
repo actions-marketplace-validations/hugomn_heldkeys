@@ -274,6 +274,40 @@ fn hostile_workflow_end_to_end() {
     assert!(json.stdout.contains("evil.example"), "{}", json.stdout);
 }
 
+/// An ignore rule's reason and path come from `.heldkeys.toml`, which a
+/// pull request can change: they reach every format, in the summary and the
+/// "Ignored" section, as inert text, with the URL password scrubbed.
+#[test]
+fn hostile_config_end_to_end() {
+    let config = fixture("config/hostile/config.toml");
+    let config = config.to_str().unwrap();
+    let project = fixture("hostile/project");
+    for (name, _) in FORMATS {
+        for details in [false, true] {
+            let mut args = vec!["ci", "--format", name, "--no-color", "--fail-on", "none"];
+            args.extend(["--config", config]);
+            if details {
+                args.push("--details");
+            }
+            let env = [
+                ("GITHUB_ACTIONS", "true"),
+                ("GITHUB_EVENT_NAME", "pull_request"),
+            ];
+            let out = run_in(&fixture("hostile/home"), &project, &args, &env);
+            let label = format!("{name} config details={details}");
+            assert_eq!(out.code, 0, "{label}: {}", out.stderr);
+            assert_inert(&label, &out.stdout);
+            assert_inert(&format!("{label} stderr"), &out.stderr);
+            if *name == "markdown" {
+                assert_inert_markdown(&label, &out.stdout);
+            }
+            assert!(!out.stdout.contains("FAKEcfgPASSWORD0903"), "{label}");
+            // The hostile reason did reach the report.
+            assert!(out.stdout.contains("pwned"), "{label}: {}", out.stdout);
+        }
+    }
+}
+
 /// Workflows built to make the analysis slow, or to flood the report with
 /// one huge name. Each used to take from 15 to 30 seconds and now runs in
 /// well under a second; the bound is generous for debug builds and busy

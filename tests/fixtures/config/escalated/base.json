@@ -1,0 +1,36 @@
+{
+  "schema": "heldkeys/v1",
+  "tool": {
+    "name": "heldkeys",
+    "version": "0.1.1"
+  },
+  "mode": "ci",
+  "origin": "p",
+  "summary": {
+    "credentials": 1,
+    "workflow_risks": 1,
+    "long_lived_write": 0,
+    "high": 0,
+    "medium": 1,
+    "low": 0,
+    "info": 0,
+    "ignored": 0,
+    "in_baseline": 0
+  },
+  "findings": [
+    {
+      "check": "workflows",
+      "rule": "HK-WF-001",
+      "title": "AI agent on an untrusted trigger",
+      "location": ".github/workflows/claude.yml:7 jobs.claude.steps[0] (uses: anthropics/claude-code-action@374f254)",
+      "fingerprint": null,
+      "severity": "medium",
+      "lifetime": "short-lived",
+      "access": "write",
+      "detail": "Claude Code on issue_comment; holds a write token (contents: write) and secrets ANTHROPIC_API_KEY; the action only runs for users with write access, but the agent still reads text others wrote",
+      "fix": "Give the agent job read-only permissions and only its model key; move write actions to a separate job that does not read untrusted text.",
+      "category": "workflow"
+    }
+  ],
+  "suppressed": []
+}

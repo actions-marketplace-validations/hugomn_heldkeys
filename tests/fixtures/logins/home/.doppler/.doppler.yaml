@@ -1,0 +1,5 @@
+scoped:
+    /:
+        api-host: https://api.doppler.com
+        dashboard-host: https://dashboard.doppler.com
+        token: dp.ct.FAKEFAKEdopplerTOKEN1016

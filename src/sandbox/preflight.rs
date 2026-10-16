@@ -26,6 +26,9 @@ pub struct Verdict<'a> {
     pub strict: bool,
     /// All credentials reachable (every finding except Info).
     pub credentials: usize,
+    /// " (2 ignored by .heldkeys.toml)" when ignore rules or a baseline left
+    /// findings out, so the verdict never hides that it was narrowed.
+    pub suppressed_note: String,
 }
 
 /// Decides PASS or FAIL for `report` under `fail_on`. With `strict`, anything
@@ -48,6 +51,7 @@ pub fn verdict(report: &Report, fail_on: FailOn, strict: bool) -> Verdict<'_> {
         unreadable,
         strict,
         credentials: report.summary().credentials,
+        suppressed_note: report.summary().suppressed_note(),
     }
 }
 
@@ -55,6 +59,10 @@ impl Verdict<'_> {
     /// The one-line verdict, e.g.
     /// "heldkeys preflight: FAIL, 3 high-severity credentials reachable (2 long-lived with write access)".
     pub fn line(&self) -> String {
+        format!("{}{}", self.verdict_line(), self.suppressed_note)
+    }
+
+    fn verdict_line(&self) -> String {
         let prefix = format!("{} preflight:", crate::TOOL_NAME);
         if self.passed {
             let unread = match self.unreadable.len() {

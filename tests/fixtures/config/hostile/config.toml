@@ -1,0 +1,11 @@
+# Text a pull request controls. Control characters are written as TOML
+# escapes, so this file is plain text.
+[[ignore]]
+rule = "HK-WF-*"
+path = ".github/workflows/hostile\u001byml"
+reason = "ok\r\n::error::pwned \u001b]0;title\u0007 [click](https://evil.example/x) <img src=x> @octocat \u202Ereversed"
+
+[[ignore]]
+rule = "HK-WF-*"
+path = "*"
+reason = "##[warning]defused https://user:FAKEcfgPASSWORD0903@example.com"

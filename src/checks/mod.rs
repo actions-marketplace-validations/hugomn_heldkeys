@@ -10,6 +10,7 @@ pub mod aws;
 pub mod azure;
 pub mod cargo_credentials;
 pub mod ci_runtime;
+pub mod cli_logins;
 pub mod cloud_metadata;
 pub mod display;
 pub mod docker;
@@ -63,11 +64,13 @@ pub fn local_checks() -> Vec<Box<dyn Check>> {
         Box::new(npmrc::NpmrcCheck),
         Box::new(pypirc::PypircCheck),
         Box::new(cargo_credentials::CargoCredentialsCheck),
+        Box::new(cli_logins::CliLoginsCheck),
         Box::new(dotenv::DotenvCheck),
         Box::new(ssh_agent::SshAgentCheck),
         Box::new(git_helper::GitHelperCheck),
         Box::new(git_config::GitConfigCheck),
         Box::new(mcp::McpCheck),
+        Box::new(cli_logins::AiLoginsCheck),
         Box::new(docker_socket::DockerSocketCheck),
         Box::new(k8s_service_account::K8sServiceAccountCheck),
         Box::new(cloud_metadata::CloudMetadataCheck),
@@ -247,6 +250,9 @@ mod tests {
             "FAKEawsSECRETfromENVfakeFAKE0104".into(),
         );
         contexts.push(project);
+        let mut logins = fixture_ctx("logins/home");
+        logins.cwd = fixture("logins/project");
+        contexts.push(logins);
         let mut seen = 0;
         for ctx in &contexts {
             for f in run_all(&all_checks(), ctx) {
@@ -309,6 +315,9 @@ mod tests {
         let mut leaky = fixture_ctx("leaky/home");
         leaky.cwd = fixture("leaky/project");
         contexts.push(leaky);
+        let mut logins = fixture_ctx("logins/home");
+        logins.cwd = fixture("logins/project");
+        contexts.push(logins);
         for ctx in &contexts {
             for f in run_all(&local_checks(), ctx) {
                 assert!(

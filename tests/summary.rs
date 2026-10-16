@@ -7,7 +7,7 @@ mod common;
 
 use std::path::{Path, PathBuf};
 
-use common::{FAKE_SSH_KEY, run_in};
+use common::{FAKE_SSH_KEY, copy_dir, fixture, run_in};
 
 const WORKTREES: usize = 30;
 
@@ -347,4 +347,87 @@ fn markdown_leads_with_the_summary() {
     assert!(fix < full, "{md}");
     assert!(md.contains("### Same secret in several places"), "{md}");
     assert_no_secret("markdown", &md);
+}
+
+/// Fake values of the editor history test.
+const HISTORY_OPENAI: &str = "sk-proj-FAKEFAKEFAKEFAKEFAKEFAKE1040";
+const HISTORY_DB: &str = "postgres://app:FAKEhistoryPW1041@db.internal:5432/app";
+const HISTORY_COPIES: usize = 20;
+
+/// Writes `count` Local History copies of `text` under `project/.history`.
+fn history_copies(project: &Path, name: &str, text: &str, count: usize) {
+    for i in 0..count {
+        let copy = match name.split_once('.') {
+            // `.env.local` is copied as `.env_<stamp>.local`.
+            Some(("", rest)) => match rest.split_once('.') {
+                Some((base, ext)) => format!(".{base}_202605072301{i:02}.{ext}"),
+                None => format!(".{rest}_202605072301{i:02}"),
+            },
+            _ => format!("{name}_202605072301{i:02}"),
+        };
+        write(&project.join(".history").join(copy), text);
+    }
+}
+
+#[test]
+fn many_history_copies_of_one_env_file_stay_one_line() {
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path().join("home");
+    let project = tmp.path().join("project");
+    std::fs::create_dir_all(&home).unwrap();
+    let env = format!("OPENAI_API_KEY={HISTORY_OPENAI}\nDATABASE_URL={HISTORY_DB}\n");
+    write(&project.join(".env"), &env);
+    history_copies(&project, ".env", &env, HISTORY_COPIES);
+    history_copies(&project, ".env.local", &env, HISTORY_COPIES);
+
+    let json: serde_json::Value =
+        serde_json::from_str(&scan(&home, &project, &["--format", "json"]).stdout).unwrap();
+    let findings = json["findings"].as_array().unwrap();
+    let copies = findings
+        .iter()
+        .filter(|f| f["rule"] == "HK-DOTENV-003")
+        .count();
+    assert_eq!(copies, 2 * 2 * HISTORY_COPIES);
+
+    let text = scan(&home, &project, &["--no-color"]).stdout;
+    let lines: Vec<&str> = text.lines().collect();
+    assert!(lines.len() <= 30, "{} lines:\n{text}", lines.len());
+    // Each secret is one line in "Fix these first", shown at the .env file
+    // (the third line is `scan`'s GITHUB_TOKEN).
+    let top = text.split("Fix these first\n").nth(1).unwrap();
+    let top = top.split("\n\n").next().unwrap();
+    assert_eq!(top.lines().count(), 3, "{top}");
+    assert_eq!(top.lines().filter(|l| l.contains("./")).count(), 2, "{top}");
+    assert!(top.contains("./.env: OPENAI_API_KEY"), "{top}");
+    assert!(top.contains("×41"), "{top}");
+    assert!(
+        text.contains("OpenAI project API key sk-p…040 in 41 files (./.env, +40)"),
+        "{text}"
+    );
+    let steps = text.split("Next steps\n").nth(1).unwrap();
+    assert!(
+        steps.contains("Delete the editor .history folders holding 40 copies of .env files"),
+        "{steps}"
+    );
+    for secret in [HISTORY_OPENAI, "FAKEhistoryPW1041"] {
+        assert!(!text.contains(&secret[..12]), "{text}");
+    }
+}
+
+#[test]
+fn logins_and_history_copies_still_fit_a_screen() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (home, cwd) = big_home(tmp.path());
+    copy_dir(&fixture("logins/home"), &home);
+    let env = format!("OPENAI_API_KEY={HISTORY_OPENAI}\nDATABASE_URL={HISTORY_DB}\n");
+    history_copies(&cwd.join("acme/webapp"), ".env", &env, HISTORY_COPIES);
+    let text = scan(&home, &cwd, &["--no-color"]).stdout;
+    let lines: Vec<&str> = text.lines().collect();
+    assert!(lines.len() <= 60, "{} lines:\n{text}", lines.len());
+    for line in &lines {
+        assert!(line.chars().count() <= 120, "{line}");
+    }
+    assert!(text.contains("  AI tool logins "), "{text}");
+    assert!(text.contains("  Developer platform CLIs "), "{text}");
+    assert_no_secret("logins", &text);
 }

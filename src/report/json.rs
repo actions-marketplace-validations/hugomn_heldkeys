@@ -2,11 +2,16 @@
 //!
 //! Fields are only ever added within a schema version. Renaming or removing a
 //! field means a new version.
+//!
+//! The same document is a baseline (`--baseline`, `--write-baseline`): only
+//! `schema`, `origin` and each finding's `rule`, `location`, `fingerprint`,
+//! `severity`, `access` and `lifetime` are read back.
 
 use serde::Serialize;
 
-use crate::finding::Finding;
+use crate::finding::{Access, Finding, Lifetime, Severity};
 use crate::report::{Report, Summary};
+use crate::suppress::By;
 
 #[derive(Serialize)]
 struct Tool {
@@ -19,8 +24,36 @@ struct Document<'a> {
     schema: &'static str,
     tool: Tool,
     mode: &'static str,
+    /// The scanned directory as shown ("~/workspace"). Baselines use it to
+    /// compare locations relative to it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    origin: Option<&'a str>,
     summary: Summary,
     findings: &'a [Finding],
+    /// Findings left out by an ignore rule or the baseline.
+    suppressed: Vec<SuppressedEntry<'a>>,
+    /// Warnings about the run, such as ignore rules read from the checkout
+    /// of the pull request under review.
+    notices: &'a [String],
+}
+
+/// One entry of `suppressed`: enough to recognise the finding, and why it
+/// was left out. Like every finding, it holds a fingerprint at most.
+#[derive(Serialize)]
+struct SuppressedEntry<'a> {
+    rule: &'a str,
+    check: &'a str,
+    title: &'a str,
+    severity: Severity,
+    lifetime: Lifetime,
+    access: Access,
+    location: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fingerprint: Option<&'a str>,
+    by: By,
+    reason: &'a str,
+    /// The config or baseline file.
+    source: &'a str,
 }
 
 pub fn render(report: &Report) -> String {
@@ -31,8 +64,27 @@ pub fn render(report: &Report) -> String {
             version: crate::TOOL_VERSION,
         },
         mode: report.mode.as_str(),
+        origin: report.origin.as_deref(),
         summary: report.summary(),
         findings: &report.findings,
+        suppressed: report
+            .suppressed
+            .iter()
+            .map(|s| SuppressedEntry {
+                rule: s.finding.rule,
+                check: s.finding.check,
+                title: &s.finding.title,
+                severity: s.finding.severity,
+                lifetime: s.finding.lifetime,
+                access: s.finding.access,
+                location: &s.finding.location,
+                fingerprint: s.finding.fingerprint.as_deref(),
+                by: s.by,
+                reason: &s.reason,
+                source: &s.source,
+            })
+            .collect(),
+        notices: &report.suppression.notices,
     };
     // Serializing plain structs of strings and numbers cannot fail.
     let mut out = serde_json::to_string_pretty(&doc).expect("report serializes");

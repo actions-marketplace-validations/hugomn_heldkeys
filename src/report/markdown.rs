@@ -12,6 +12,12 @@
 //! through `escape`, which leaves no link, image, HTML or @mention syntax,
 //! and paths and commands through `code`, a code span that is copied as is.
 //!
+//! Findings an ignore rule or the baseline left out get an "Ignored"
+//! section: the counts, every ignore rule that matched with its reason and
+//! file (so a reviewer sees an ignore a pull request added), warnings about
+//! where the rules came from, and the findings themselves in a `<details>`
+//! block.
+//!
 //! Size: a PR comment holds 65,536 characters and a job summary 1 MiB. If the
 //! full report does not fit in `MAX_CHARS`, the details are dropped first, then
 //! table rows are capped, with a note pointing to the JSON or SARIF report.
@@ -51,8 +57,10 @@ fn render_with(report: &Report, max_rows: Option<usize>, details: bool) -> Strin
         report.mode.as_str(),
         escape(&summary.line(), Place::Inline)
     );
+    notices(&mut out, report);
     if report.findings.is_empty() {
         out.push_str("No findings.\n");
+        ignored(&mut out, report, max_rows, details);
         out.push_str(&footer());
         return out;
     }
@@ -126,8 +134,97 @@ fn render_with(report: &Report, max_rows: Option<usize>, details: bool) -> Strin
         ));
     }
 
+    ignored(&mut out, report, max_rows, details);
     out.push_str(&footer());
     out
+}
+
+/// Warnings about where ignore rules came from, right under the verdict.
+fn notices(out: &mut String, report: &Report) {
+    for notice in &report.suppression.notices {
+        out.push_str(&format!(
+            "> **Warning:** {}\n\n",
+            escape(notice, Place::Inline)
+        ));
+    }
+}
+
+/// The "Ignored" section (see the module documentation). `max_rows` caps
+/// the listed findings like the tables; `details` folds them in.
+fn ignored(out: &mut String, report: &Report, max_rows: Option<usize>, details: bool) {
+    let s = &report.suppression;
+    if report.suppressed.is_empty() && s.expired.is_empty() {
+        return;
+    }
+    out.push_str(&format!("### Ignored ({})\n\n", report.suppressed.len()));
+    if let Some(line) = crate::report::text::ignored_counts(report) {
+        out.push_str(&format!("{}.\n\n", escape(&line, Place::Inline)));
+    }
+    if !s.hits.is_empty() {
+        out.push_str("| Rule | Path or location | Findings | Reason | File | Expires |\n");
+        out.push_str("| --- | --- | ---: | --- | --- | --- |\n");
+        for hit in &s.hits {
+            let ig = &hit.ignore;
+            out.push_str(&format!(
+                "| {} | {} | {} | {} | {} | {} |\n",
+                code(&ig.rule, Place::Cell),
+                [ig.path.as_deref(), ig.location.as_deref()]
+                    .into_iter()
+                    .flatten()
+                    .map(|p| code(p, Place::Cell))
+                    .collect::<Vec<_>>()
+                    .join(" "),
+                hit.findings,
+                escape(&ig.reason, Place::Cell),
+                code(&ig.source, Place::Cell),
+                ig.expires.map(|d| d.to_string()).unwrap_or_default(),
+            ));
+        }
+        out.push('\n');
+    }
+    for ig in &s.expired {
+        out.push_str(&format!(
+            "- Expired on {}, no longer applied: {} in {}\n",
+            ig.expires.map(|d| d.to_string()).unwrap_or_default(),
+            code(&ig.rule, Place::Inline),
+            code(&ig.source, Place::Inline),
+        ));
+    }
+    if !s.expired.is_empty() {
+        out.push('\n');
+    }
+    if report.suppressed.is_empty() || !details {
+        return;
+    }
+    let shown = max_rows.map_or(report.suppressed.len(), |m| m.min(report.suppressed.len()));
+    out.push_str(&format!(
+        "<details><summary>Ignored findings ({})</summary>\n\n",
+        report.suppressed.len()
+    ));
+    for sup in &report.suppressed[..shown] {
+        let f = &sup.finding;
+        out.push_str(&format!(
+            "- {} **{}** at {}",
+            label(f.severity),
+            escape(&f.title, Place::Inline),
+            code(&f.location, Place::Inline)
+        ));
+        if let Some(fp) = &f.fingerprint {
+            out.push_str(&format!(" {}", code(fp, Place::Inline)));
+        }
+        out.push_str(&format!(
+            " ({}): {}\n",
+            code(f.rule, Place::Inline),
+            escape(&sup.reason, Place::Inline)
+        ));
+    }
+    if shown < report.suppressed.len() {
+        out.push_str(&format!(
+            "- _{} more; see the JSON report._\n",
+            report.suppressed.len() - shown
+        ));
+    }
+    out.push_str("\n</details>\n\n");
 }
 
 /// The summary the text output leads with (see `digest`): the credentials

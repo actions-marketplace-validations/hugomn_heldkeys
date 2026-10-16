@@ -6,7 +6,7 @@
 
 ## What it detects
 
-JSON files in `~/.aws/cli/cache` that hold a `SecretAccessKey`. The AWS CLI writes them when it assumes a role and keeps them until they expire.
+JSON files in `~/.aws/cli/cache` that hold a `SecretAccessKey`. The AWS CLI writes them when it assumes a role and keeps them until they expire. heldkeys reads each session's `Expiration`: while one has not expired, the finding is titled "Cached AWS session usable without MFA" and says until when (in UTC). Sessions without an expiry are reported as "Cached AWS role credentials", possibly expired. A cache that only holds expired sessions is not reported, because nobody can use them any more.
 
 ## Why it matters for agents
 
@@ -14,7 +14,7 @@ The AWS CLI and every AWS SDK read `~/.aws/credentials` and `~/.aws/config` on t
 
 ## How to fix
 
-- Clear `~/.aws/cli/cache` before handing the shell to an agent.
+- Clear the cache before handing a shell to an agent (delete `~/.aws/cli/cache`).
 - Keep role session durations short.
 
 ## Example
@@ -25,14 +25,14 @@ One finding as `heldkeys --format json` reports it:
 {
   "check": "aws",
   "rule": "HK-AWS-007",
-  "title": "Cached AWS role credentials",
+  "title": "Cached AWS session usable without MFA",
   "location": "~/.aws/cli/cache",
   "fingerprint": null,
   "severity": "medium",
   "lifetime": "short-lived",
   "access": "unknown",
-  "detail": "1 cached session(s), possibly expired",
-  "fix": "Clear ~/.aws/cli/cache when you hand the shell to an agent.",
+  "detail": "1 unexpired session(s), the last valid until 2099-01-01 12:00 UTC",
+  "fix": "Clear the cache before handing a shell to an agent (delete ~/.aws/cli/cache), and keep role sessions short.",
   "category": "cloud-cli"
 }
 ```

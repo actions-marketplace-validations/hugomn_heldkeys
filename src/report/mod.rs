@@ -4,6 +4,7 @@
 use crate::finding::{Finding, Severity};
 use crate::redact;
 use crate::sanitize::sanitize;
+use crate::suppress::{By, Change, Suppressed, Suppression};
 
 pub mod digest;
 pub mod json;
@@ -45,6 +46,11 @@ pub struct Report {
     /// known. Text output names it in its first line and shows paths under
     /// it relative to it.
     pub origin: Option<String>,
+    /// Findings an ignore rule or the baseline left out (see `suppress`).
+    /// Counted and listed by every format, never part of `--fail-on`.
+    pub suppressed: Vec<Suppressed>,
+    /// The ignore rules that matched, the baseline used, and warnings.
+    pub suppression: Suppression,
 }
 
 impl Report {
@@ -58,6 +64,8 @@ impl Report {
             mode,
             findings,
             origin: None,
+            suppressed: Vec::new(),
+            suppression: Suppression::default(),
         }
     }
 
@@ -70,6 +78,14 @@ impl Report {
 
     pub fn summary(&self) -> Summary {
         let count = |s: Severity| self.findings.iter().filter(|f| f.severity == s).count();
+        let by = |by: By| self.suppressed.iter().filter(|s| s.by == by).count();
+        // "ignored by .heldkeys.toml" when that is the only file the
+        // matching ignore rules came from, "ignored by config" otherwise.
+        let project_only = self
+            .suppression
+            .hits
+            .iter()
+            .all(|h| h.ignore.source.trim_start_matches("./") == crate::config::PROJECT_FILE);
         Summary {
             mode: self.mode,
             credentials: self.findings.iter().filter(|f| f.is_credential()).count(),
@@ -87,13 +103,28 @@ impl Report {
             medium: count(Severity::Medium),
             low: count(Severity::Low),
             info: count(Severity::Info),
+            ignored: by(By::Config),
+            in_baseline: by(By::Baseline),
+            // A file the change under review can edit is named as such, so
+            // the verdict itself says who accepted these findings.
+            ignored_by: match self.suppression.config_from_change {
+                Some(Change::PullRequest) => "a file the pull request can change",
+                Some(Change::MergeRequest) => "a file the merge request can change",
+                None if project_only => crate::config::PROJECT_FILE,
+                None => "config",
+            },
+            baseline: match self.suppression.baseline_from_change {
+                Some(Change::PullRequest) => "a baseline the pull request can change",
+                Some(Change::MergeRequest) => "a baseline the merge request can change",
+                None => "the baseline",
+            },
         }
     }
 }
 
 /// Sets each credential's `duplicates`: how many other credentials in the
 /// report hold the same secret (`Finding::secret_key`).
-fn count_duplicates(findings: &mut [Finding]) {
+pub(crate) fn count_duplicates(findings: &mut [Finding]) {
     let mut counts: std::collections::HashMap<crate::finding::SecretKey, usize> =
         std::collections::HashMap::new();
     for f in findings.iter().filter(|f| f.is_credential()) {
@@ -175,6 +206,16 @@ pub struct Summary {
     pub medium: usize,
     pub low: usize,
     pub info: usize,
+    /// Findings left out by an ignore rule.
+    pub ignored: usize,
+    /// Findings left out because the baseline already has them.
+    pub in_baseline: usize,
+    /// Names where the ignore rules came from, in the summary line.
+    #[serde(skip)]
+    pub ignored_by: &'static str,
+    /// Names the baseline in the summary line.
+    #[serde(skip)]
+    pub baseline: &'static str,
 }
 
 impl Summary {
@@ -193,14 +234,33 @@ impl Summary {
         }
     }
 
+    /// " (4 ignored by .heldkeys.toml, 2 in the baseline)", or nothing when
+    /// no finding was left out.
+    pub fn suppressed_note(&self) -> String {
+        let mut parts = Vec::new();
+        if self.ignored > 0 {
+            parts.push(format!("{} ignored by {}", self.ignored, self.ignored_by));
+        }
+        if self.in_baseline > 0 {
+            parts.push(format!("{} in {}", self.in_baseline, self.baseline));
+        }
+        if parts.is_empty() {
+            String::new()
+        } else {
+            format!(" ({})", parts.join(", "))
+        }
+    }
+
     fn ci_line(&self) -> String {
         let job_credentials = self.credentials - self.workflow_risks;
+        let note = self.suppressed_note();
         if self.workflow_risks == 0 && job_credentials == 0 {
-            return "No AI agent workflow risks and no credentials reachable in this job."
-                .to_string();
+            return format!(
+                "No AI agent workflow risks and no credentials reachable in this job{note}."
+            );
         }
         format!(
-            "{}, {} reachable in this job.",
+            "{}, {} reachable in this job{note}.",
             plural(
                 self.workflow_risks,
                 "AI agent workflow risk",
@@ -211,14 +271,15 @@ impl Summary {
     }
 
     fn scan_line(&self) -> String {
+        let note = self.suppressed_note();
         match self.credentials {
-            0 => "No credentials reachable from here.".to_string(),
+            0 => format!("No credentials reachable from here{note}."),
             1 => format!(
-                "1 credential reachable, {} long-lived with write access. If a prompt injection can run one shell command here, it can use it.",
+                "1 credential reachable, {} long-lived with write access{note}. If a prompt injection can run one shell command here, it can use it.",
                 self.long_lived_write
             ),
             n => format!(
-                "{n} credentials reachable, {} long-lived with write access. If a prompt injection can run one shell command here, it can use all of them.",
+                "{n} credentials reachable, {} long-lived with write access{note}. If a prompt injection can run one shell command here, it can use all of them.",
                 self.long_lived_write
             ),
         }
@@ -364,6 +425,10 @@ mod tests {
             medium: 0,
             low: 0,
             info: 1,
+            ignored: 0,
+            in_baseline: 0,
+            ignored_by: "config",
+            baseline: "the baseline",
         };
         assert_eq!(s.line(), "No credentials reachable from here.");
         s.credentials = 7;

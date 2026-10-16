@@ -1,0 +1,10 @@
+on: issue_comment
+permissions: {contents: write}
+jobs:
+  claude:
+    runs-on: x
+    steps:
+      - uses: anthropics/claude-code-action@374f254f5efaf968abfe15d399fd90972e8138b9
+        with:
+          allowed_non_write_users: "*"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

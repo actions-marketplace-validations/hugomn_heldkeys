@@ -38,18 +38,20 @@ jobs:
 The step fails when a finding reaches `fail-on` (High by default), after the report is in the job summary and the SARIF upload is done, so a failing run still shows its findings.
 
 > [!TIP]
-> `@v0` follows the latest v0 release, which is convenient but means the code you run can change under you. For anything that matters, pin the action to a full commit SHA with the version in a comment, for example `uses: hugomn/heldkeys@<full-commit-sha> # v0.1.1`, and let Dependabot update it. heldkeys reports unpinned agent actions itself ([HK-WF-005](rules/HK-WF-005.md)), and zizmor reports the rest.
+> `@v0` follows the latest v0 release, which is convenient but means the code you run can change under you. For anything that matters, pin the action to a full commit SHA with the version in a comment, for example `uses: hugomn/heldkeys@<full-commit-sha> # v0.2.0`, and let Dependabot update it. heldkeys reports unpinned agent actions itself ([HK-WF-005](rules/HK-WF-005.md)), and zizmor reports the rest.
 
 ## Inputs
 
 | Input | Default | Description |
 |---|---|---|
-| `version` | `latest` | heldkeys release to install, such as `0.1.1`. `latest` installs the newest release; pin a version for reproducible builds. |
+| `version` | `latest` | heldkeys release to install, such as `0.2.0`. `latest` installs the newest release; pin a version for reproducible builds. |
 | `fail-on` | `high` | Fail the step when a finding reaches this level: `none`, `high`, `medium`, `low` or `long-lived-write`. |
 | `format` | `text` | Format of the report printed to the log: `text`, `json`, `markdown` or `sarif`. |
 | `sarif` | `false` | Write a SARIF report and upload it to code scanning with `github/codeql-action/upload-sarif` (category `heldkeys`). The job needs `security-events: write`, and `actions: read` in private repositories. |
 | `path` | `.` | Directory of the repository to analyse, relative to the workspace. |
 | `repo-secrets` | `false` | Also scan tracked files on the current branch for tokens of known formats ([HK-REPO-001](rules/HK-REPO-001.md)). |
+| `config` | | Ignore rules file to use instead of `.heldkeys.toml` in `path`, relative to the workspace. See [Ignore rules and baselines](#ignore-rules-and-baselines). |
+| `baseline` | | A previous heldkeys JSON report (`heldkeys ci --write-baseline`), relative to the workspace. Findings already in it are listed as ignored and do not fail the step. |
 
 ## Outputs
 
@@ -121,6 +123,49 @@ Point `path` at the checkout. SARIF paths are relative to it, and the action pas
           path: app
           sarif: true
 ```
+
+## Ignore rules and baselines
+
+`heldkeys ci` reads ignore rules from `.heldkeys.toml` in `path`, and with `baseline` it leaves out the findings a previous run already reported, so the step fails only on new risks. Whatever is left out is still counted in the verdict ("1 AI agent workflow risk, 0 credentials reachable in this job (3 ignored by .heldkeys.toml, 2 in the baseline).") and listed in the job summary with each ignore rule's reason, and SARIF uploads those results as suppressed, with the reason as the justification. The file format is in the [README](../README.md#ignoring-findings-and-baselines).
+
+Both files are part of the repository, which is also what makes them risky: on `pull_request` the checkout is the pull request's merge commit, so a pull request can add an ignore rule, or a baseline entry, for the very risk it introduces. heldkeys cannot tell offline whether the file changed against the base branch, so in a pull request run (`pull_request`, `pull_request_target`, `issue_comment` and the other untrusted triggers) it says so whenever ignore rules or the baseline come from the checkout: the verdict reads "(1 ignored by a file the pull request can change)" or "(2 in a baseline the pull request can change)", and a warning naming the file goes to the log (stderr), the job summary, JSON `notices` and the SARIF run's tool notifications. GitLab merge request pipelines (`CI_PIPELINE_SOURCE=merge_request_event`) get the same treatment.
+
+The baseline itself only accepts a finding that is no worse than when it was recorded: a pull request that turns an accepted Medium into a High at the same place (for example by letting anyone trigger the agent) fails the step, and the finding says "was medium in the baseline". Ignore rules' `path` patterns match only the file a finding is in, never job ids or other text the pull request picks.
+
+Two ways to close the gap:
+
+- **CODEOWNERS.** Require a review from the people who own security for changes to these files, so an added ignore is a reviewed decision:
+
+  ```text
+  /.heldkeys.toml           @your-org/security
+  /heldkeys-baseline.json   @your-org/security
+  ```
+
+- **Read them from the default branch.** Check the two files out from the default branch into a subdirectory and point `config` and `baseline` at that copy. A pull request then cannot change what is accepted; changes to the files take effect once they are merged. A file in a nested checkout like this one does not trigger the warning.
+
+  ```yaml
+      steps:
+        - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+          with:
+            persist-credentials: false
+        - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+          with:
+            ref: ${{ github.event.repository.default_branch }}
+            path: .heldkeys-base
+            sparse-checkout: |
+              .heldkeys.toml
+              heldkeys-baseline.json
+            sparse-checkout-cone-mode: false
+            persist-credentials: false
+        - uses: hugomn/heldkeys@v0
+          with:
+            config: .heldkeys-base/.heldkeys.toml
+            baseline: .heldkeys-base/heldkeys-baseline.json
+  ```
+
+  Both files must exist on the default branch: a `config` or `baseline` that is not there stops the step with exit code 2 rather than running without them.
+
+To create the baseline, run `heldkeys ci --write-baseline heldkeys-baseline.json --fail-on none` where the check runs, so it sees the same job environment, or save the JSON report of a CI run (`format: json`) and commit it. A baseline only ever accepts findings; it never adds any, and `--no-ignore` on the binary shows everything again.
 
 ## Post the report as a PR comment
 

@@ -22,6 +22,8 @@ use heldkeys::context::Context;
 const LISTED: &[&str] = &[
     ".aws/sso/cache/session.json",
     ".aws/cli/cache/role.json",
+    ".awsume/cache/aws-credentials-0000",
+    ".awsvault/keys/default",
     ".ssh/id_ed25519",
     ".ssh/deploy_key",
 ];
@@ -93,7 +95,16 @@ fn strict_preflight_fails_on_every_unreadable_credential_path() {
     assert_eq!(baseline.code, 0, "{}", baseline.stdout);
 
     let paths = credential_paths(&empty, &cwd);
-    for expected in [".aws/credentials", ".claude.json", ".cursor/mcp.json"] {
+    for expected in [
+        ".aws/credentials",
+        ".claude.json",
+        ".cursor/mcp.json",
+        ".codex/auth.json",
+        ".claude/.credentials.json",
+        ".vault-token",
+        ".config/stripe/config.toml",
+        ".granted/config",
+    ] {
         assert!(
             paths.contains(&PathBuf::from(expected)),
             "{expected} missing from {paths:?}"

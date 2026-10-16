@@ -11,6 +11,11 @@
 //! `.github/workflows/x.yml env: AWS_KEY`), which becomes the physical
 //! location. Anything else (home-directory files in `scan` mode, `env:` with
 //! no workflow known) gets a logical location only.
+//!
+//! Findings left out by an ignore rule or the baseline are results too, with
+//! a `suppressions` entry (kind `external`, status `accepted`, the reason as
+//! justification), so code scanning shows them as dismissed rather than
+//! fixed, and the reason stays next to them.
 
 use serde_json::{Value, json};
 
@@ -27,12 +32,22 @@ const FILE_CHECKS: &[&str] = &["workflows", "repo-secrets", "ci-runtime"];
 
 pub fn render(report: &Report) -> Result<String, String> {
     let rules = all_rules();
-    let results: Vec<Value> = report
+    let index = |f: &Finding| rules.iter().position(|r| r.id == f.rule);
+    let mut results: Vec<Value> = report
         .findings
         .iter()
-        .map(|f| result(f, rules.iter().position(|r| r.id == f.rule)))
+        .map(|f| result(f, index(f)))
         .collect();
-    let doc = json!({
+    for s in &report.suppressed {
+        let mut r = result(&s.finding, index(&s.finding));
+        r["suppressions"] = json!([{
+            "kind": "external",
+            "status": "accepted",
+            "justification": s.reason,
+        }]);
+        results.push(r);
+    }
+    let mut doc = json!({
         "$schema": SCHEMA,
         "version": "2.1.0",
         "runs": [{
@@ -48,6 +63,21 @@ pub fn render(report: &Report) -> Result<String, String> {
             "results": results,
         }]
     });
+    // Warnings about the run (ignore rules read from the checkout of the
+    // pull request under review) as tool notifications, which code scanning
+    // shows with the analysis.
+    if !report.suppression.notices.is_empty() {
+        let notifications: Vec<Value> = report
+            .suppression
+            .notices
+            .iter()
+            .map(|n| json!({ "level": "warning", "message": { "text": n } }))
+            .collect();
+        doc["runs"][0]["invocations"] = json!([{
+            "executionSuccessful": true,
+            "toolExecutionNotifications": notifications,
+        }]);
+    }
     let mut out = serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?;
     out.push('\n');
     Ok(out)
@@ -121,7 +151,7 @@ fn result(f: &Finding, rule_index: Option<usize>) -> Value {
 }
 
 /// The repo-relative file (and line) a CI finding's location starts with.
-fn file_location(f: &Finding) -> Option<(String, Option<u64>)> {
+pub(crate) fn file_location(f: &Finding) -> Option<(String, Option<u64>)> {
     if !FILE_CHECKS.contains(&f.check) {
         return None;
     }
@@ -232,6 +262,41 @@ mod tests {
         );
         // Local-mode checks never get a physical location.
         assert_eq!(loc(TEST_RULE, "src/app.py:3"), None);
+    }
+
+    #[test]
+    fn suppressed_findings_are_results_with_suppressions() {
+        let mut report = Report::new(
+            Mode::Ci,
+            vec![
+                finding(WF_RULE, ".github/workflows/a.yml:3 jobs.a", Severity::High),
+                finding(WF_RULE, ".github/workflows/b.yml:3 jobs.b", Severity::High),
+            ],
+        );
+        let ignore = crate::config::Ignore {
+            rule: "HK-WF-001".to_string(),
+            path: Some(".github/workflows/b.yml".to_string()),
+            location: None,
+            reason: "accepted until the rewrite".to_string(),
+            expires: None,
+            source: "./.heldkeys.toml".to_string(),
+        };
+        crate::suppress::apply(
+            &mut report,
+            &[ignore],
+            None,
+            crate::config::Date::parse("2026-10-16").unwrap(),
+        );
+        let v: Value = serde_json::from_str(&render(&report).unwrap()).unwrap();
+        let results = v["runs"][0]["results"].as_array().unwrap();
+        assert_eq!(results.len(), 2);
+        assert!(results[0].get("suppressions").is_none());
+        assert_eq!(
+            results[1]["suppressions"],
+            json!([{ "kind": "external", "status": "accepted", "justification": "accepted until the rewrite" }])
+        );
+        assert_eq!(results[1]["ruleId"], "HK-WF-001");
+        assert_eq!(results[1]["level"], "error");
     }
 
     #[test]

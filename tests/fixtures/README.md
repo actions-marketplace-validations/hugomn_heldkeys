@@ -47,6 +47,24 @@ None of them work anywhere.
   values, secret fragment and query parameters, and `--password`-style
   flags. `tests/redaction.rs` adds a `.git/config` in a temporary copy.
 
+- `logins/home/`: the files AI tools and developer platform CLIs keep
+  after a login, in every format the `ai-logins` and `cli-logins` checks
+  read (JSON, TOML, YAML, INI, a bare token, `.env`): Codex, Claude Code
+  (`.credentials.json`, settings `env` and `apiKeyHelper`), Gemini CLI,
+  GitHub Copilot, Hugging Face, Vault, Terraform, Vercel (macOS path),
+  Netlify, Fly.io, Supabase, Wrangler, Stripe (live and test keys),
+  Doppler, Railway, Kaggle. Also AWS session caches (`~/.aws/cli/cache`
+  with one valid and one expired session, awsume), an aws-vault file
+  keyring and a Granted config with a file keyring. Session expiries are
+  in 2099 and 2020, so the tests do not depend on today's date.
+- `logins/project/`: a project `.claude/settings.local.json`, and a `.env`
+  with VS Code Local History copies under `.history/` (a copy of `.env`
+  with the same value, an older one with a different value, a copy of
+  `.env.local` and one of `.env.example`). Its `.env` and `.history`
+  files are committed with `git add -f`.
+
+Login fixture tokens are numbered 10xx.
+
 MCP fixture tokens are numbered 03xx, hostile fixture secrets 07xx, scrub
 fixture secrets 09xx.
 
@@ -56,3 +74,16 @@ the tests write them to a temporary directory instead.
 `project/.gitignore` ignores the project's own `.env` files (that is part of
 what the `dotenv` check is tested against), so those fixture files are
 committed with `git add -f`. Do the same when adding new ones.
+
+- `config/`: ignore rules and baselines. `repo/` is a repository with a
+  `.heldkeys.toml` (one active ignore, one for `.env` files under
+  `fixtures/`, one expired), two agent workflows and two `.env` files;
+  `home/` holds a user config (`~/.config/heldkeys/config.toml`);
+  `invalid/` holds configs that must be refused (unknown key, missing
+  reason, a pattern that matches every rule, a bad date, a TOML syntax
+  error); `hostile/config.toml` puts terminal escapes, workflow commands,
+  Markdown and a URL password in a reason and a path. `job-named-fixtures/`
+  is a workflow whose job id looks like a path (`fixtures-bot`), which a
+  `path = "*fixtures*"` rule must not hide; `escalated/` is a workflow
+  whose agent became High after a baseline (`base.json`) recorded it as
+  Medium. Tokens are numbered 09xx.

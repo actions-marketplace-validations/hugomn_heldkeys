@@ -1,0 +1,18 @@
+# Accepted risks. Every entry needs a reason; protect this file with CODEOWNERS.
+
+[[ignore]]
+rule = "HK-WF-005"
+path = ".github/workflows/claude.yml"
+reason = "pinned via Renovate"
+expires = "2099-12-31"
+
+[[ignore]]
+rule = "HK-DOTENV-*"
+path = "fixtures/*"
+reason = "test fixtures, not real tokens"
+
+[[ignore]]
+rule = "HK-WF-001"
+path = ".github/workflows/triage.yml"
+reason = "temporary exception"
+expires = "2020-01-31"

@@ -5,6 +5,24 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). Rule ids (`HK-*`) are part of the
 public interface: a released id never changes meaning.
 
+## [Unreleased]
+
+## [0.2.0] - 2026-10-16
+
+### Added
+
+- **Ignore rules.** A `.heldkeys.toml` in the scanned directory lists accepted risks as `[[ignore]]` tables with a `rule` (an id or a prefix such as `HK-WF-*`), an optional `path` glob matched against the file a finding is in (never its job id, `uses:` value or variable name), an optional exact `location` for findings in no file, a required `reason` and an optional `expires` date, after which the rule stops applying with a warning. Parsing is strict: unknown keys, a missing reason, a bad date and a pattern that matches every rule without a `location` or a `path` that names more than wildcards are errors (exit 2). Local scans also read `~/.config/heldkeys/config.toml`. `--config <file>` reads only that file, `--no-config` reads none.
+- **Baselines.** `--baseline <file>` leaves out the findings already in a previous `--format json` report, matched on rule, location (relative to the scanned directory, without line numbers) and fingerprint, so CI fails only on new findings. A finding that got worse since (higher severity, wider access or a longer lifetime) is reported again, with "was medium in the baseline" in its detail. `--write-baseline <file>` writes every finding of the run as a baseline. JSON reports gain `origin`, the scanned directory as shown.
+- **Ignored findings stay visible.** The summary line counts them ("(4 ignored by .heldkeys.toml, 2 in the baseline)"), text and Markdown reports have an "Ignored" section with every ignore rule that matched, its reason and file (`--details` lists the findings themselves), JSON has a `suppressed` list and `ignored` and `in_baseline` counts in `summary`, SARIF emits them as results with `suppressions` (kind `external`, the reason as justification), and the `preflight` verdict line says how many were left out. `--no-ignore` reports everything.
+- In the CI run of a pull request (GitHub Actions on `pull_request` or an untrusted trigger) or a GitLab merge request, `heldkeys ci` warns when ignore rules or the baseline were read from the change's own checkout: on stderr, in the text and Markdown reports, as JSON `notices` and as SARIF tool notifications, and the summary line says "ignored by a file the pull request can change".
+- Action inputs `config` and `baseline`, and docs on protecting both files with CODEOWNERS or reading them from the default branch.
+- `ai-logins` check (new "AI tool logins" category): logins AI coding tools keep on disk. Codex `auth.json`, API key or ChatGPT login, honouring `CODEX_HOME` (HK-AI-001); Claude Code `.credentials.json` on Linux, honouring `CLAUDE_CONFIG_DIR`; the macOS keychain is never read (HK-AI-002); credentials in the `env` block of Claude Code settings, user and project, and `apiKeyHelper` (HK-AI-003); Gemini CLI `oauth_creds.json` and `~/.gemini/.env` (HK-AI-004); GitHub Copilot `apps.json` and `hosts.json` (HK-AI-005); Hugging Face `token` and `stored_tokens`, honouring `HF_HOME` (HK-AI-006).
+- `cli-logins` check (new "Developer platform CLIs" category): logins developer platform CLIs keep on disk, on macOS and Linux paths. Vault `~/.vault-token` (HK-CLI-001), Terraform `credentials.tfrc.json` (HK-CLI-002), Vercel `auth.json` (HK-CLI-003), Netlify `config.json` (HK-CLI-004), Fly.io `config.yml` (HK-CLI-005), Supabase `access-token` (HK-CLI-006), Cloudflare Wrangler `default.toml` (HK-CLI-007), Stripe CLI `config.toml`, with test-mode keys rated Low (HK-CLI-008), Doppler `.doppler.yaml` (HK-CLI-009), Railway `config.json` (HK-CLI-010) and Kaggle `kaggle.json` (HK-CLI-011).
+- `aws` check: awsume's session cache (HK-AWS-008), aws-vault's file keyring, High when `AWS_VAULT_FILE_PASSPHRASE` is set (HK-AWS-009), and Granted's file keyring setting (HK-AWS-010).
+- `aws` check: cached sessions in `~/.aws/cli/cache` and the awsume cache are read for their expiry. A session that has not expired is reported as "Cached AWS session usable without MFA" with the time it expires; a cache holding only expired sessions is no longer reported.
+- `dotenv` check: copies of `.env` files that VS Code's Local History extension keeps in `.history/` (`.env_20260507230125`), reported as "Editor history copy of a .env file" with the severity of the value inside (HK-DOTENV-003). A copy holding the same value as the `.env` file counts as the same secret, so many copies stay one line in the summary.
+- "Next steps" in the summary has actions for AI tool logins, developer platform CLIs, cached AWS sessions and editor history copies.
+
 ## [0.1.1] - 2026-10-16
 
 The first public release.
@@ -85,5 +103,7 @@ heldkeys treats everything it scans as untrusted: a pull request controls its wo
 
 Published to crates.io early to reserve the name, and yanked. Use 0.1.1.
 
+[Unreleased]: https://github.com/hugomn/heldkeys/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/hugomn/heldkeys/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/hugomn/heldkeys/releases/tag/v0.1.1
 [0.1.0]: https://crates.io/crates/heldkeys/0.1.0

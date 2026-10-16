@@ -1,0 +1,4 @@
+oauth_token = "FAKEwranglerOAUTHtoken1014"
+expiration_time = "2026-10-16T12:00:00.000Z"
+refresh_token = "FAKEwranglerREFRESHtoken1014"
+scopes = [ "account:read", "workers:write" ]

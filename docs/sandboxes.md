@@ -88,7 +88,7 @@ spec:
       emptyDir: {}
   initContainers:
     - name: heldkeys-install
-      image: your-registry/heldkeys:0.1.1     # any image that contains the static binary
+      image: your-registry/heldkeys:0.2.0     # any image that contains the static binary
       command: ["cp", "/usr/local/bin/heldkeys", "/heldkeys/heldkeys"]
       volumeMounts:
         - { name: heldkeys, mountPath: /heldkeys }

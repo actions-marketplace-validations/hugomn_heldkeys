@@ -1,0 +1,3 @@
+[[ignore]]
+rule = "HK-*"
+reason = "silence everything"
