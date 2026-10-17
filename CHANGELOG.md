@@ -7,10 +7,16 @@ public interface: a released id never changes meaning.
 
 ## [Unreleased]
 
+### Added
+
+- Every release archive comes with its GitHub build provenance as `<archive>.sigstore.json`, so `gh attestation verify <archive> --bundle <archive>.sigstore.json --owner hugomn` works without asking GitHub. The bundles of the earlier releases, 0.1.1 to 0.2.3, were attached from the same attestations.
+- Fuzz targets (`fuzz/`, cargo-fuzz) for the YAML, TOML, JSON-with-comments and INI readers, the ignore-rule, baseline and report parsers, and the token rules, redaction and output sanitising. CI runs each for a short while on every push.
+
 ### Changed
 
 - CI runs HOL's plugin scanner (`hashgraph-online/ai-plugin-scanner-action`, pinned to a commit) on every push and pull request, with read access only, no secrets and no network probing, and fails below a score of 100.
 - CI runs OpenSSF Scorecard on every push to `main` and weekly, uploads the findings to code scanning and publishes the score.
+- CI runs CodeQL on the Rust sources and on the workflows, on every push to `main`, every pull request and weekly.
 
 ## [0.2.3] - 2026-10-16
 

@@ -154,6 +154,7 @@ jobs:
           dist build $DIST_TAG_FLAG --print=linkage --output-format=json $DIST_ARGS > dist-manifest.json
           echo "dist ran successfully"
       - name: Attest
+        id: attest
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: "target/distrib/*${{ join(matrix.targets, ', ') }}*"
@@ -163,10 +164,23 @@ jobs:
         # to "real" actions without writing to env-vars, and writing to env-vars has
         # inconsistent syntax between shell and powershell.
         shell: bash
+        env:
+          ATTEST_BUNDLE: ${{ steps.attest.outputs.bundle-path }}
         run: |
           # Parse out what we just built and upload it to scratch storage
           echo "paths<<EOF" >> "$GITHUB_OUTPUT"
           dist print-upload-files-from-manifest --manifest dist-manifest.json >> "$GITHUB_OUTPUT"
+          # The provenance bundle of this job's archives goes next to each
+          # archive as <archive>.sigstore.json, so the release carries it and
+          # `gh attestation verify <archive> --bundle <archive>.sigstore.json`
+          # works offline. Same bundle for every archive: it names them all.
+          if [ -s "$ATTEST_BUNDLE" ]; then
+            for archive in target/distrib/*.tar.xz target/distrib/*.tar.gz target/distrib/*.zip; do
+              [ -f "$archive" ] || continue
+              cp "$ATTEST_BUNDLE" "$archive.sigstore.json"
+              echo "$archive.sigstore.json" >> "$GITHUB_OUTPUT"
+            done
+          fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
           cp dist-manifest.json "$BUILD_MANIFEST_NAME"

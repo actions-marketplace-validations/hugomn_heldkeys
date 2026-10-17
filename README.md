@@ -516,6 +516,8 @@ shasum -a 256 -c "heldkeys-$target.tar.xz.sha256"
 tar -xJf "heldkeys-$target.tar.xz" && ./heldkeys-$target/heldkeys --version
 ```
 
+Each archive also has its build provenance next to it as `heldkeys-$target.tar.xz.sigstore.json`, a Sigstore bundle signed by GitHub for the release workflow of this repository. With the GitHub CLI, `gh attestation verify heldkeys-$target.tar.xz --bundle heldkeys-$target.tar.xz.sigstore.json --owner hugomn` checks it, offline if you pass `--custom-trusted-root`.
+
 **Cargo** (builds from source with Rust 1.88 or later):
 
 ```sh
