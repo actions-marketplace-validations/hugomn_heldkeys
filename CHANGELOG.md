@@ -9,7 +9,7 @@ public interface: a released id never changes meaning.
 
 ### Changed
 
-- CI runs HOL's plugin scanner (`hashgraph-online/ai-plugin-scanner-action`, pinned to a commit) on every push and pull request, with read access only, no secrets and no network probing.
+- CI runs HOL's plugin scanner (`hashgraph-online/ai-plugin-scanner-action`, pinned to a commit) on every push and pull request, with read access only, no secrets and no network probing, and fails below a score of 100.
 
 ## [0.2.3] - 2026-10-16
 
