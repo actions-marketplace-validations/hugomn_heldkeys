@@ -12,6 +12,7 @@ heldkeys lists them for your terminal, the agent's sandbox or the CI job, withou
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Never prints secrets](https://img.shields.io/badge/secrets-never%20printed-2ea44f.svg)](#what-heldkeys-never-does)
 [![HOL plugin scanner 100/100](https://img.shields.io/badge/HOL%20plugin%20scanner-100%2F100-2ea44f.svg)](https://github.com/hugomn/heldkeys/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/hugomn/heldkeys/badge)](https://scorecard.dev/viewer/?uri=github.com/hugomn/heldkeys)
 [![heldkeys on HOL Registry (Trust Score)](https://img.shields.io/endpoint?url=https%3A%2F%2Fhol.org%2Fapi%2Fregistry%2Fbadges%2Fplugin%3Fslug%3Dhugomn%252Fheldkeys%26metric%3Dtrust&label=HOL%20trust&style=flat)](https://hol.org/registry/plugins/hugomn%2Fheldkeys)
 
 </div>
