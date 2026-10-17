@@ -75,6 +75,18 @@ docker run --rm -v "$PWD/target/x86_64-unknown-linux-musl/release/heldkeys:/held
   --read-only gcr.io/distroless/static /heldkeys preflight
 ```
 
+## Fuzzing
+
+`fuzz/` holds [cargo-fuzz](https://rust-fuzz.github.io/book/cargo-fuzz.html) targets for the parsers that read untrusted files: the YAML reader (`yaml`), the TOML, JSON-with-comments and INI readers with the ignore-rule and baseline parsers on top (`config_formats`), the report a container sends back (`report`), and the token rules, redaction and output sanitising (`text_rules`). They need a nightly toolchain:
+
+```sh
+cargo install cargo-fuzz
+cargo +nightly fuzz build
+cargo +nightly fuzz run yaml -- -max_total_time=60
+```
+
+CI builds every target and runs each one for 20 seconds on every push. A crash is a bug: each target only hands bytes to a function that must return a value or an error.
+
 ## What the code assumes about the system
 
 So that one static binary runs anywhere, the code avoids anything glibc-specific:

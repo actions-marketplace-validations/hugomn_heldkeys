@@ -136,3 +136,25 @@ jobs:
           plugin_dir: "."
           min_score: 100
           fail_on_severity: none
+
+  # The parsers heldkeys points at untrusted files, fuzzed for a short while on
+  # every push (see fuzz/). A crash here is a bug in a parser, not flakiness:
+  # each target only feeds bytes to a function that must return or error.
+  fuzz:
+    name: fuzz (short runs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install nightly and cargo-fuzz
+        run: |
+          rustup toolchain install nightly --profile minimal
+          cargo +nightly install cargo-fuzz --locked --version 0.13.2
+      - name: Build the fuzz targets
+        run: cargo +nightly fuzz build
+      - name: Run each target for 20 seconds
+        run: |
+          for target in yaml config_formats report text_rules; do
+            cargo +nightly fuzz run "$target" -- -max_total_time=20
+          done

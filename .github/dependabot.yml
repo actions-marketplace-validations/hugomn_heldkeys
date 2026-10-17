@@ -12,6 +12,18 @@ updates:
     commit-message:
       prefix: "chore(deps)"
 
+  - package-ecosystem: cargo
+    directory: /fuzz
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      fuzz:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore(fuzz)"
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

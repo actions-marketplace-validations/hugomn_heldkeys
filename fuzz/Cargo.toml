@@ -1,0 +1,51 @@
+# Fuzz targets for the parsers heldkeys points at untrusted files, run with
+# cargo-fuzz (https://rust-fuzz.github.io/book/cargo-fuzz.html):
+#
+#   cargo install cargo-fuzz
+#   cargo +nightly fuzz run yaml -- -max_total_time=60
+#
+# This is a separate package, not a workspace member, so the main crate's
+# toolchain, lockfile and MSRV are untouched. CI builds every target and runs
+# each one briefly on every push.
+[package]
+name = "heldkeys-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.heldkeys]
+path = ".."
+
+[[bin]]
+name = "yaml"
+path = "fuzz_targets/yaml.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "config_formats"
+path = "fuzz_targets/config_formats.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "report"
+path = "fuzz_targets/report.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "text_rules"
+path = "fuzz_targets/text_rules.rs"
+test = false
+doc = false
+bench = false
