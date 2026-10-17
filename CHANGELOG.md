@@ -18,6 +18,10 @@ public interface: a released id never changes meaning.
 - CI runs OpenSSF Scorecard on every push to `main` and weekly, uploads the findings to code scanning and publishes the score.
 - CI runs CodeQL on the Rust sources and on the workflows, on every push to `main`, every pull request and weekly.
 
+### Fixed
+
+- The TOML reader no longer loops forever, eating memory, on a broken array such as `k = [` followed by a `}`: the line is skipped like any other broken line. Found by the new fuzz targets.
+
 ## [0.2.3] - 2026-10-16
 
 ### Changed

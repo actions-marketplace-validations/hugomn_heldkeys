@@ -246,7 +246,17 @@ impl Parser {
                     return Some(Value::Array(items));
                 }
                 ',' => self.pos += 1,
-                _ => items.push(self.value()?),
+                _ => {
+                    let start = self.pos;
+                    let value = self.value()?;
+                    if self.pos == start {
+                        // Nothing a value can start with, such as a stray `}`:
+                        // the array is broken. Give up on it instead of
+                        // pushing empty values forever.
+                        return None;
+                    }
+                    items.push(value);
+                }
             }
         }
     }
@@ -362,6 +372,16 @@ ignored = "yes"
         let v = parse("[a]\nb.c = \"\"\"\nline\"\"\"\nd = true\n");
         assert_eq!(v["a"]["b"]["c"], "line");
         assert_eq!(v["a"]["d"], true);
+    }
+
+    #[test]
+    fn stray_brace_inside_an_array_ends_it() {
+        // Found by fuzzing: the array loop made no progress on `}` and pushed
+        // nulls until memory ran out. The broken line is skipped, the rest
+        // still parses.
+        let v = parse("k-=[\n}\n[t]\nk = \"v\"\n");
+        assert!(v.get("k-").is_none());
+        assert_eq!(v["t"]["k"], "v");
     }
 
     #[test]
