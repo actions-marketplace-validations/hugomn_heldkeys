@@ -176,7 +176,7 @@ fn is_system_path(path: &Path) -> bool {
 }
 
 /// Opens `path` and checks, on the open handle, that it is a regular file.
-fn open_regular(path: &Path) -> Result<fs::File, Unreadable> {
+pub(crate) fn open_regular(path: &Path) -> Result<fs::File, Unreadable> {
     let mut options = fs::OpenOptions::new();
     options.read(true);
     #[cfg(unix)]

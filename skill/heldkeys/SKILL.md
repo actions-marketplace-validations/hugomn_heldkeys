@@ -29,6 +29,8 @@ description: Check which credentials this agent can reach from where it is runni
 
    In CI, `heldkeys ci --format json --fail-on none` covers the job's runtime and workflow files instead.
 
+   After a supply-chain compromise has been disclosed (the October 2026 LiteLLM and OVHcloud CLI releases), run `heldkeys incident black-october --format json` instead: the `incident` object carries a `verdict` (`compromised`, `exposed` or `clean`) and the findings in category `indicators` say what was found. Exit code 1 means a confirmed indicator. Report it plainly, point the user at the advisories the report lists, and do not try to clean anything up yourself.
+
 3. **Read the JSON.** The document has `"schema": "heldkeys/v1"`, a `summary` object (`credentials`, `long_lived_write`, `high`, `medium`, `low`, `info`) and a `findings` array, most severe first. Each finding has:
 
    | Field | Meaning |

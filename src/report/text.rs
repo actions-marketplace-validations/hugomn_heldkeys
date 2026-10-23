@@ -58,7 +58,7 @@ const MAX_NOTES: usize = 3;
 
 pub fn render(report: &Report, opts: &TextOptions) -> String {
     let summary = report.summary();
-    if report.findings.is_empty() {
+    if report.findings.is_empty() && report.mode != Mode::Incident {
         if !has_ignored(report) {
             return format!("{}\n", summary.line());
         }
@@ -157,6 +157,38 @@ fn header(report: &Report, width: usize) -> String {
             crate::TOOL_NAME,
             s.line().trim_end_matches('.')
         ),
+        Mode::Incident => {
+            let set = report.incident.map(|i| i.id()).unwrap_or("incident");
+            let lead = format!("{} incident {set}: ", crate::TOOL_NAME);
+            let verdict = if s.indicators > 0 {
+                format!(
+                    "{} found",
+                    plural(
+                        s.indicators,
+                        "compromise indicator",
+                        "compromise indicators"
+                    )
+                )
+            } else if s.exposures > 0 {
+                format!(
+                    "{} to check",
+                    plural(s.exposures, "sign of exposure", "signs of exposure")
+                )
+            } else {
+                "no known indicators".to_string()
+            };
+            let reach = format!(
+                ", {} reachable from ",
+                plural(s.credentials, "credential", "credentials")
+            );
+            let room = width
+                .saturating_sub(
+                    lead.chars().count() + verdict.chars().count() + reach.chars().count(),
+                )
+                .max(12);
+            let origin = middle_truncate(report.origin.as_deref().unwrap_or("here"), room);
+            format!("{lead}{verdict}{reach}{origin}")
+        }
         Mode::Scan => {
             let lead = format!(
                 "{}: {} reachable from ",
@@ -180,8 +212,13 @@ fn header(report: &Report, width: usize) -> String {
 /// The default view.
 fn overview(out: &mut Out, report: &Report, digest: &Digest) {
     let opts = out.opts;
+    incident_lead(out, report);
     if !digest.secrets.is_empty() {
-        out.heading("Fix these first");
+        out.heading(if report.mode == Mode::Incident {
+            "Rotate these first"
+        } else {
+            "Fix these first"
+        });
         let top: Vec<Row> = digest
             .top()
             .iter()
@@ -205,13 +242,20 @@ fn overview(out: &mut Out, report: &Report, digest: &Digest) {
         where_they_are(out, digest);
         shared(out, report, digest, MAX_SHARED);
     }
+    incident_extras(out, report);
     notes(out, report, digest, MAX_NOTES);
-    next_steps(out, digest);
+    next_steps(out, report, digest);
+    advisories(out, report);
     ignored(out, report);
     out.blank();
     let command = match report.mode {
         Mode::Scan => crate::TOOL_NAME.to_string(),
         Mode::Ci => format!("{} ci", crate::TOOL_NAME),
+        Mode::Incident => format!(
+            "{} incident {}",
+            crate::TOOL_NAME,
+            report.incident.map(|i| i.id()).unwrap_or("<set>")
+        ),
     };
     // Info findings are notes (files that could not be read, job context),
     // not credentials, so they are counted apart from the summary's total.
@@ -358,19 +402,107 @@ fn notes(out: &mut Out, report: &Report, digest: &Digest, max: usize) {
     }
 }
 
-fn next_steps(out: &mut Out, digest: &Digest) {
-    if digest.steps.is_empty() {
+fn next_steps(out: &mut Out, report: &Report, digest: &Digest) {
+    let steps: Vec<String> = incident_steps(report)
+        .into_iter()
+        .chain(digest.steps.iter().cloned())
+        .collect();
+    if steps.is_empty() {
         return;
     }
     out.heading("Next steps");
-    for (i, step) in digest.steps.iter().enumerate() {
+    for (i, step) in steps.iter().enumerate() {
         out.wrapped(&format!("  {}. ", i + 1), 5, step, false);
+    }
+}
+
+/// `heldkeys incident`: the snapshot disclaimer under the header, then the
+/// indicators found, each with its detail.
+fn incident_lead(out: &mut Out, report: &Report) {
+    let Some(incident) = report.incident else {
+        return;
+    };
+    out.wrapped("", 0, &incident.disclaimer(), true);
+    let found: Vec<&Finding> = report
+        .findings
+        .iter()
+        .filter(|f| f.category == Category::Indicators && f.severity != Severity::Info)
+        .collect();
+    if found.is_empty() {
+        return;
+    }
+    out.heading("Compromise indicators");
+    section_rows(out, report, &found);
+}
+
+/// `heldkeys incident`: what is not a credential, after the credentials.
+fn incident_extras(out: &mut Out, report: &Report) {
+    if report.mode != Mode::Incident {
+        return;
+    }
+    for category in [Category::Runtimes, Category::Breaches] {
+        let mine: Vec<&Finding> = report
+            .findings
+            .iter()
+            .filter(|f| f.category == category && f.severity != Severity::Info)
+            .collect();
+        if mine.is_empty() {
+            continue;
+        }
+        out.heading(category.label());
+        section_rows(out, report, &mine);
+    }
+}
+
+/// Rows like "Fix these first", each followed by its detail, dimmed.
+fn section_rows(out: &mut Out, report: &Report, findings: &[&Finding]) {
+    let opts = out.opts;
+    let table: Vec<Row> = findings.iter().map(|f| Row::of(report, f, 1)).collect();
+    for (line, f) in rows(&table, opts).iter().zip(findings) {
+        out.line(line);
+        if let Some(detail) = &f.detail {
+            out.wrapped("          ", 10, detail, true);
+        }
+    }
+}
+
+/// The first "Next steps" entry of a `heldkeys incident` report: what the
+/// verdict means.
+fn incident_steps(report: &Report) -> Vec<String> {
+    if report.mode != Mode::Incident {
+        return Vec::new();
+    }
+    let s = report.summary();
+    let step = if s.indicators > 0 {
+        "Treat this host as compromised: take it off the network, stop the malicious process and remove the files the advisory names, then rotate every credential above, cloud and source-control tokens first."
+    } else if s.exposures > 0 {
+        "Check the signs of exposure above against the advisories; if this machine ran an affected build, rotate every credential above."
+    } else if s.credentials == 0 {
+        "Nothing to clean up for the known indicators, and no credentials reachable from here for an affected build to have taken."
+    } else {
+        "Nothing to clean up for the known indicators. The credentials above are what an affected build would have taken: rotate them if this machine ran one."
+    };
+    vec![step.to_string()]
+}
+
+/// `heldkeys incident`: the primary sources, so the reader checks the
+/// indicators against them.
+fn advisories(out: &mut Out, report: &Report) {
+    let Some(incident) = report.incident else {
+        return;
+    };
+    out.heading("Advisories");
+    for a in incident.advisories() {
+        out.wrapped("  ", 4, &format!("{}: {}", a.what, a.url), false);
     }
 }
 
 /// `--details`: every finding, by category, then by file.
 fn details(out: &mut Out, report: &Report, digest: &Digest) {
     let opts = out.opts;
+    if let Some(incident) = report.incident {
+        out.wrapped("", 0, &incident.disclaimer(), true);
+    }
     let mut categories: Vec<Category> = report.findings.iter().map(|f| f.category).collect();
     categories.sort();
     categories.dedup();
@@ -433,7 +565,8 @@ fn details(out: &mut Out, report: &Report, digest: &Digest) {
     if !shared.is_empty() {
         shared_all(out, report, digest);
     }
-    next_steps(out, digest);
+    next_steps(out, report, digest);
+    advisories(out, report);
     ignored(out, report);
     out.blank();
 }

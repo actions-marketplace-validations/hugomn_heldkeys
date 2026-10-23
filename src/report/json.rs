@@ -35,6 +35,22 @@ struct Document<'a> {
     /// Warnings about the run, such as ignore rules read from the checkout
     /// of the pull request under review.
     notices: &'a [String],
+    /// `heldkeys incident`: the set, the verdict and the advisories.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    incident: Option<IncidentDoc>,
+}
+
+/// The `incident` object of a `heldkeys incident` report.
+#[derive(Serialize)]
+struct IncidentDoc {
+    set: &'static str,
+    title: &'static str,
+    /// The date the indicator list was last checked against the advisories.
+    as_of: &'static str,
+    verdict: crate::incident::Verdict,
+    indicators: usize,
+    exposures: usize,
+    advisories: &'static [crate::incident::Advisory],
 }
 
 /// One entry of `suppressed`: enough to recognise the finding, and why it
@@ -85,6 +101,18 @@ pub fn render(report: &Report) -> String {
             })
             .collect(),
         notices: &report.suppression.notices,
+        incident: report.incident.map(|i| {
+            let s = report.summary();
+            IncidentDoc {
+                set: i.id(),
+                title: i.title(),
+                as_of: i.as_of(),
+                verdict: crate::incident::verdict(&report.findings),
+                indicators: s.indicators,
+                exposures: s.exposures,
+                advisories: i.advisories(),
+            }
+        }),
     };
     // Serializing plain structs of strings and numbers cannot fail.
     let mut out = serde_json::to_string_pretty(&doc).expect("report serializes");
@@ -120,5 +148,25 @@ mod tests {
         assert_eq!(v["findings"][0]["rule"], "HK-TEST-001");
         assert_eq!(v["findings"][0]["fingerprint"], "AKIA…PLE");
         assert_eq!(v["findings"][0]["detail"], serde_json::Value::Null);
+        assert!(v.get("incident").is_none());
+    }
+
+    #[test]
+    fn incident_object() {
+        let out = render(
+            &Report::new(Mode::Incident, vec![]).with_incident(crate::incident::Set::BlackOctober),
+        );
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["mode"], "incident");
+        assert_eq!(v["incident"]["set"], "black-october");
+        assert_eq!(v["incident"]["verdict"], "clean");
+        assert_eq!(v["incident"]["indicators"], 0);
+        assert!(
+            v["incident"]["advisories"][0]["url"]
+                .as_str()
+                .unwrap()
+                .starts_with("https://")
+        );
+        assert_eq!(v["summary"]["indicators"], 0);
     }
 }

@@ -13,6 +13,8 @@
 //! - `config`, `baseline` and `suppress`: ignore rules from `.heldkeys.toml`
 //!   and baselines, which move accepted findings out of the report, counted.
 //! - `sandbox`: `preflight`, and running the binary inside a container or pod.
+//! - `incident` and `hash`: named incident sets for `heldkeys incident`, and
+//!   the SHA-256 and MD5 their indicators are matched with.
 //! - `jsonc`, `toml_subset`, `ini`, `yaml`: small readers for config formats.
 
 pub mod baseline;
@@ -21,6 +23,8 @@ pub mod config;
 pub mod context;
 pub mod finding;
 pub mod fsutil;
+pub mod hash;
+pub mod incident;
 pub mod ini;
 pub mod jsonc;
 pub mod redact;

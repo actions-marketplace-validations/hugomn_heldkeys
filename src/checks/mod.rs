@@ -1,7 +1,8 @@
 //! The checks, one per file, and the registry that lists them.
 //!
 //! Adding a check means: write a file with a struct implementing `Check`,
-//! declare the module below, and add it to `local_checks` or `ci_checks`.
+//! declare the module below, and add it to `local_checks`, `ci_checks` or
+//! an incident set in `incident`.
 
 use crate::context::Context;
 use crate::finding::{Finding, Rule};
@@ -21,6 +22,7 @@ pub mod gcloud;
 pub mod git_config;
 pub mod git_credentials;
 pub mod git_helper;
+pub mod incident;
 pub mod k8s_service_account;
 pub mod kube;
 pub mod mcp;
@@ -92,13 +94,20 @@ pub fn ci_checks() -> Vec<Box<dyn Check>> {
     ]
 }
 
-/// Every check of both modes, each id once (`git-config` runs in both, with
-/// the same rules). For listings of rules: SARIF, docs.
+/// Checks `heldkeys incident <set>` adds to the local ones: every set's
+/// indicators, each id once.
+pub fn incident_checks() -> Vec<Box<dyn Check>> {
+    incident::all()
+}
+
+/// Every check of every mode, each id once (`git-config` runs in both
+/// `scan` and `ci`, with the same rules). For listings of rules: SARIF, docs.
 pub fn all_checks() -> Vec<Box<dyn Check>> {
     let mut seen = std::collections::BTreeSet::new();
     local_checks()
         .into_iter()
         .chain(ci_checks())
+        .chain(incident_checks())
         .filter(|c| seen.insert(c.id()))
         .collect()
 }

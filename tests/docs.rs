@@ -86,6 +86,7 @@ fn readme_rules_tables_list_every_rule() {
     for (label, n) in [
         ("Local rules", count(&local)),
         ("CI rules", count(&ci_only)),
+        ("Incident rules", count(&checks::incident_checks())),
     ] {
         let heading = format!("<b>{label}</b> ({n})");
         if !readme.contains(&heading) {

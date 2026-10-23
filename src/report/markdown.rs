@@ -22,7 +22,7 @@
 //! full report does not fit in `MAX_CHARS`, the details are dropped first, then
 //! table rows are capped, with a note pointing to the JSON or SARIF report.
 
-use crate::finding::{Finding, Severity};
+use crate::finding::{Category, Finding, Severity};
 use crate::report::{Report, digest};
 
 /// Under GitHub's PR comment limit (65,536), with room for a bot's header.
@@ -49,6 +49,50 @@ pub fn render(report: &Report) -> Result<String, String> {
     Ok(out)
 }
 
+/// `heldkeys incident`: the snapshot disclaimer, the indicators found with
+/// their details, and the advisories. The advisory links are the tool's own
+/// constants, never text from a scanned file.
+fn incident_sections(out: &mut String, report: &Report) {
+    let Some(incident) = report.incident else {
+        return;
+    };
+    out.push_str(&format!(
+        "_{}_\n\n",
+        escape(&incident.disclaimer(), Place::Inline)
+    ));
+    let found: Vec<&Finding> = report
+        .findings
+        .iter()
+        .filter(|f| f.category == Category::Indicators && f.severity != Severity::Info)
+        .collect();
+    if !found.is_empty() {
+        out.push_str("### Compromise indicators\n\n");
+        out.push_str("| Rule | Indicator | Location | Detail |\n| --- | --- | --- | --- |\n");
+        for f in found {
+            out.push_str(&format!(
+                "| [{rule}]({RULE_DOCS}/{rule}.md) | {} | {} | {} |\n",
+                escape(&f.title, Place::Cell),
+                code(&f.location, Place::Cell),
+                f.detail
+                    .as_deref()
+                    .map(|d| escape(d, Place::Cell))
+                    .unwrap_or_default(),
+                rule = f.rule,
+            ));
+        }
+        out.push('\n');
+    }
+    out.push_str("### Advisories\n\n");
+    for a in incident.advisories() {
+        out.push_str(&format!(
+            "- {}: <{}>\n",
+            escape(a.what, Place::Inline),
+            a.url
+        ));
+    }
+    out.push('\n');
+}
+
 fn render_with(report: &Report, max_rows: Option<usize>, details: bool) -> String {
     let summary = report.summary();
     let mut out = format!(
@@ -58,6 +102,7 @@ fn render_with(report: &Report, max_rows: Option<usize>, details: bool) -> Strin
         escape(&summary.line(), Place::Inline)
     );
     notices(&mut out, report);
+    incident_sections(&mut out, report);
     if report.findings.is_empty() {
         out.push_str("No findings.\n");
         ignored(&mut out, report, max_rows, details);

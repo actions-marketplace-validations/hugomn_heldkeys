@@ -26,6 +26,9 @@ pub enum Format {
 pub enum Mode {
     Scan,
     Ci,
+    /// `heldkeys incident <set>`: the local scan with an incident's
+    /// indicator checks in front of it.
+    Incident,
 }
 
 impl Mode {
@@ -33,6 +36,7 @@ impl Mode {
         match self {
             Mode::Scan => "scan",
             Mode::Ci => "ci",
+            Mode::Incident => "incident",
         }
     }
 }
@@ -51,6 +55,9 @@ pub struct Report {
     pub suppressed: Vec<Suppressed>,
     /// The ignore rules that matched, the baseline used, and warnings.
     pub suppression: Suppression,
+    /// The incident set of a `heldkeys incident` run: its name, date and
+    /// advisories, which every format shows.
+    pub incident: Option<crate::incident::Incident>,
 }
 
 impl Report {
@@ -66,7 +73,14 @@ impl Report {
             origin: None,
             suppressed: Vec::new(),
             suppression: Suppression::default(),
+            incident: None,
         }
+    }
+
+    /// Marks the report as a `heldkeys incident <set>` run.
+    pub fn with_incident(mut self, set: crate::incident::Set) -> Report {
+        self.incident = Some(crate::incident::Incident { set });
+        self
     }
 
     /// Names the scanned directory (see `origin`). Cleaned like any finding
@@ -103,6 +117,30 @@ impl Report {
             medium: count(Severity::Medium),
             low: count(Severity::Low),
             info: count(Severity::Info),
+            indicators: self
+                .findings
+                .iter()
+                .filter(|f| crate::incident::is_indicator(f))
+                .count(),
+            exposures: self
+                .findings
+                .iter()
+                .filter(|f| crate::incident::is_exposure(f))
+                .count(),
+            runtimes: self
+                .findings
+                .iter()
+                .filter(|f| {
+                    f.category == crate::finding::Category::Runtimes && f.severity != Severity::Info
+                })
+                .count(),
+            breaches: self
+                .findings
+                .iter()
+                .filter(|f| {
+                    f.category == crate::finding::Category::Breaches && f.severity != Severity::Info
+                })
+                .count(),
             ignored: by(By::Config),
             in_baseline: by(By::Baseline),
             // A file the change under review can edit is named as such, so
@@ -206,6 +244,16 @@ pub struct Summary {
     pub medium: usize,
     pub low: usize,
     pub info: usize,
+    /// `heldkeys incident`: confirmed indicators of compromise (High
+    /// findings of the indicator checks). 0 in the other modes.
+    pub indicators: usize,
+    /// `heldkeys incident`: signs of exposure to check (Medium and Low
+    /// findings of the indicator checks). 0 in the other modes.
+    pub exposures: usize,
+    /// `heldkeys incident`: runtimes without a security fix.
+    pub runtimes: usize,
+    /// `heldkeys incident`: platforms with a breach notice that apply here.
+    pub breaches: usize,
     /// Findings left out by an ignore rule.
     pub ignored: usize,
     /// Findings left out because the baseline already has them.
@@ -231,7 +279,50 @@ impl Summary {
         match self.mode {
             Mode::Scan => self.scan_line(),
             Mode::Ci => self.ci_line(),
+            Mode::Incident => self.incident_line(),
         }
+    }
+
+    /// `incident`: the verdict first, then what there is to rotate.
+    ///
+    /// "2 compromise indicators found. Treat this host as compromised and
+    /// rotate everything it could reach: 13 credentials, 7 long-lived with
+    /// write access."
+    fn incident_line(&self) -> String {
+        let note = self.suppressed_note();
+        let reach = match self.credentials {
+            0 => "No credentials reachable from here".to_string(),
+            n => format!(
+                "{} reachable from here, {} long-lived with write access",
+                plural(n, "credential", "credentials"),
+                self.long_lived_write
+            ),
+        };
+        if self.indicators > 0 {
+            let what = match self.credentials {
+                0 => "no credentials reachable from here".to_string(),
+                n => format!(
+                    "{}, {} long-lived with write access",
+                    plural(n, "credential", "credentials"),
+                    self.long_lived_write
+                ),
+            };
+            return format!(
+                "{} found{note}. Treat this host as compromised and rotate everything it could reach: {what}.",
+                plural(
+                    self.indicators,
+                    "compromise indicator",
+                    "compromise indicators"
+                )
+            );
+        }
+        if self.exposures > 0 {
+            return format!(
+                "No confirmed compromise indicator, {} to check{note}. {reach}.",
+                plural(self.exposures, "sign of exposure", "signs of exposure")
+            );
+        }
+        format!("No known compromise indicators found{note}. {reach}.")
     }
 
     /// " (4 ignored by .heldkeys.toml, 2 in the baseline)", or nothing when
@@ -425,6 +516,10 @@ mod tests {
             medium: 0,
             low: 0,
             info: 1,
+            indicators: 0,
+            exposures: 0,
+            runtimes: 0,
+            breaches: 0,
             ignored: 0,
             in_baseline: 0,
             ignored_by: "config",
@@ -436,6 +531,53 @@ mod tests {
         assert_eq!(
             s.line(),
             "7 credentials reachable, 2 long-lived with write access. If a prompt injection can run one shell command here, it can use all of them."
+        );
+        s.mode = Mode::Incident;
+        assert_eq!(
+            s.line(),
+            "No known compromise indicators found. 7 credentials reachable from here, 2 long-lived with write access."
+        );
+        s.exposures = 1;
+        assert_eq!(
+            s.line(),
+            "No confirmed compromise indicator, 1 sign of exposure to check. 7 credentials reachable from here, 2 long-lived with write access."
+        );
+        s.indicators = 2;
+        assert_eq!(
+            s.line(),
+            "2 compromise indicators found. Treat this host as compromised and rotate everything it could reach: 7 credentials, 2 long-lived with write access."
+        );
+        s.credentials = 0;
+        assert_eq!(
+            s.line(),
+            "2 compromise indicators found. Treat this host as compromised and rotate everything it could reach: no credentials reachable from here."
+        );
+    }
+
+    #[test]
+    fn incident_findings_are_counted_apart_from_credentials() {
+        let mut ioc = finding("ioc-litellm", Severity::High);
+        ioc.category = crate::finding::Category::Indicators;
+        let mut pin = finding("ioc-litellm", Severity::Medium);
+        pin.category = crate::finding::Category::Indicators;
+        let mut rt = finding("runtime-versions", Severity::Low);
+        rt.category = crate::finding::Category::Runtimes;
+        let r = Report::new(
+            Mode::Incident,
+            vec![ioc, pin, rt, finding("env", Severity::High)],
+        )
+        .with_incident(crate::incident::Set::BlackOctober);
+        let s = r.summary();
+        assert_eq!(
+            (s.indicators, s.exposures, s.runtimes, s.breaches),
+            (1, 1, 1, 0)
+        );
+        assert_eq!(s.credentials, 1);
+        assert_eq!(s.high, 2);
+        assert!(
+            s.line().starts_with("1 compromise indicator found."),
+            "{}",
+            s.line()
         );
     }
 

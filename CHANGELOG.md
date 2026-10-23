@@ -9,11 +9,14 @@ public interface: a released id never changes meaning.
 
 ### Added
 
+- `heldkeys incident <set>`: the indicator checks of a named wave of supply-chain compromises in front of the credential inventory, with a verdict (compromised, exposed or clean), the rotation list, the primary advisories and the date the indicator list was last checked against them. The first set, `black-october`, covers the compromised LiteLLM 1.107.0 release (the installed package, stealer files by SHA-256, marker and lock files, `PRIVCOLLECT_ACTIVE`, the loader's daemon, Docker images by digest, lockfile pins), the tampered OVHcloud CLI binaries (MD5, install window, version, `envchecker-` directories), PHP and Node.js without the 21 October 2026 fixes, and the Railway, Zeabur and OpenCode Console breach notices. Fifteen rules, `HK-LITELLM-001` to `HK-BREACH-003`, listed by `heldkeys checks` under `incident`; the exit code is 1 on a confirmed indicator. The indicator checks never run Python (its startup is what runs the LiteLLM loader) and never run the `ovhcloud` binary; `docker image ls`, `php --version`, `node --version` and `lsof` run with a cleared environment and a timeout.
+- SHA-256 and MD5 (`src/hash.rs`), written out and checked against the standard test vectors, so the indicator checks add no dependency.
 - Every release archive comes with its GitHub build provenance as `<archive>.sigstore.json`, so `gh attestation verify <archive> --bundle <archive>.sigstore.json --owner hugomn` works without asking GitHub. The bundles of the earlier releases, 0.1.1 to 0.2.3, were attached from the same attestations.
 - Fuzz targets (`fuzz/`, cargo-fuzz) for the YAML, TOML, JSON-with-comments and INI readers, the ignore-rule, baseline and report parsers, and the token rules, redaction and output sanitising. CI runs each for a short while on every push.
 
 ### Changed
 
+- The JSON summary gains `indicators`, `exposures`, `runtimes` and `breaches` (0 outside `incident`), a `heldkeys incident` report an `incident` object, and findings the three new categories `indicators`, `runtimes` and `breaches`. Nothing existing changes shape.
 - CI runs HOL's plugin scanner (`hashgraph-online/ai-plugin-scanner-action`, pinned to a commit) on every push and pull request, with read access only, no secrets and no network probing, and fails below a score of 100.
 - CI runs OpenSSF Scorecard on every push to `main` and weekly, uploads the findings to code scanning and publishes the score.
 - CI runs CodeQL on the Rust sources and on the workflows, on every push to `main`, every pull request and weekly.
