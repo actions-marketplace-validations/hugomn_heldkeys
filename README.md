@@ -254,7 +254,7 @@ jobs:
           sarif: true
 ```
 
-`@v0` is the moving major tag, available from v0.1.1. For anything that matters, pin the action to a full commit SHA with the version in a comment (`hugomn/heldkeys@<full-commit-sha> # v0.2.3`). The action installs the heldkeys binary of its own release by default, so pinning the action pins the binary too. The step fails on a High finding by default; `fail-on: none` reports without failing. All inputs and outputs, and how to run it inside the agent's own job, are in [docs/github-action.md](docs/github-action.md). Without the action, in any CI:
+`@v0` is the moving major tag, available from v0.1.1. For anything that matters, pin the action to a full commit SHA with the version in a comment (`hugomn/heldkeys@<full-commit-sha> # v0.3.0`). The action installs the heldkeys binary of its own release by default, so pinning the action pins the binary too. The step fails on a High finding by default; `fail-on: none` reports without failing. All inputs and outputs, and how to run it inside the agent's own job, are in [docs/github-action.md](docs/github-action.md). Without the action, in any CI:
 
 ```sh
 heldkeys ci --format markdown --fail-on none >> "$GITHUB_STEP_SUMMARY"

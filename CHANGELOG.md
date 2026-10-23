@@ -7,6 +7,8 @@ public interface: a released id never changes meaning.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-23
+
 ### Added
 
 - `heldkeys incident <set>`: the indicator checks of a named wave of supply-chain compromises in front of the credential inventory, with a verdict (compromised, exposed or clean), the rotation list, the primary advisories and the date the indicator list was last checked against them. The first set, `black-october`, covers the compromised LiteLLM 1.107.0 release (the installed package, stealer files by SHA-256, marker and lock files, `PRIVCOLLECT_ACTIVE`, the loader's daemon, Docker images by digest, lockfile pins), the tampered OVHcloud CLI binaries (MD5, install window, version, `envchecker-` directories), PHP and Node.js without the 21 October 2026 fixes, and the Railway, Zeabur and OpenCode Console breach notices. Fifteen rules, `HK-LITELLM-001` to `HK-BREACH-003`, listed by `heldkeys checks` under `incident`; the exit code is 1 on a confirmed indicator. The indicator checks never run Python (its startup is what runs the LiteLLM loader) and never run the `ovhcloud` binary; `docker image ls`, `php --version`, `node --version` and `lsof` run with a cleared environment and a timeout.
@@ -142,7 +144,8 @@ heldkeys treats everything it scans as untrusted: a pull request controls its wo
 
 Published to crates.io early to reserve the name, and yanked. Use 0.1.1.
 
-[Unreleased]: https://github.com/hugomn/heldkeys/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/hugomn/heldkeys/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/hugomn/heldkeys/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/hugomn/heldkeys/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/hugomn/heldkeys/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/hugomn/heldkeys/compare/v0.2.0...v0.2.1
