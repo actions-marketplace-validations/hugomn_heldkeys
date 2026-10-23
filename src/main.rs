@@ -14,6 +14,7 @@ use heldkeys::checks::{self, Check, read_errors};
 use heldkeys::config::{self, Date, Ignore};
 use heldkeys::context::Context;
 use heldkeys::finding::FailOn;
+use heldkeys::incident;
 use heldkeys::report::{self, Format, Mode, Report};
 use heldkeys::sandbox::{preflight, remote};
 use heldkeys::{baseline, suppress};
@@ -43,6 +44,31 @@ enum Command {
     /// One-line PASS/FAIL verdict for container entrypoints and sandbox start
     /// hooks; exits 1 when a finding reaches --fail-on (default: high).
     Preflight,
+    /// Look for the indicators of a named supply-chain incident, then list the
+    /// credentials to rotate: the local scan with the incident's checks in
+    /// front of it. Exits 1 when an indicator is found.
+    Incident(IncidentArgs),
+}
+
+#[derive(Args)]
+struct IncidentArgs {
+    /// The incident whose indicators to look for.
+    #[arg(value_enum)]
+    set: IncidentSetArg,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum IncidentSetArg {
+    /// 19 to 22 Oct 2026: LiteLLM 1.107.0, the OVHcloud CLI binaries, the
+    /// php2shell and Node.js fixes, and the Railway, Zeabur and OpenCode
+    /// Console breaches.
+    BlackOctober,
+}
+
+fn incident_set(arg: IncidentSetArg) -> incident::Set {
+    match arg {
+        IncidentSetArg::BlackOctober => incident::Set::BlackOctober,
+    }
 }
 
 #[derive(Args, Default)]
@@ -174,13 +200,16 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<ExitCode, String> {
     let common = cli.common;
-    let (mode, deep, repo_secrets) = match cli.command {
-        None => (Mode::Scan, false, false),
+    let (mode, deep, repo_secrets, set) = match cli.command {
+        None => (Mode::Scan, false, false, None),
         Some(Command::Scan(args)) if args.docker.is_some() || args.kube.is_some() => {
             return remote_scan(&args, &common);
         }
-        Some(Command::Scan(args)) => (Mode::Scan, args.deep, false),
-        Some(Command::Ci(args)) => (Mode::Ci, false, args.repo_secrets),
+        Some(Command::Scan(args)) => (Mode::Scan, args.deep, false, None),
+        Some(Command::Ci(args)) => (Mode::Ci, false, args.repo_secrets, None),
+        Some(Command::Incident(args)) => {
+            (Mode::Incident, false, false, Some(incident_set(args.set)))
+        }
         Some(Command::Checks) => return list_checks(&common),
         Some(Command::Preflight) => return run_preflight(&common),
     };
@@ -189,15 +218,23 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
     ctx.deep = deep;
     ctx.repo_secrets = repo_secrets;
 
-    let checks = match mode {
-        Mode::Scan => checks::local_checks(),
-        Mode::Ci => checks::ci_checks(),
+    let checks = match (mode, set) {
+        (Mode::Incident, Some(set)) => {
+            let mut checks = set.checks();
+            checks.extend(checks::local_checks());
+            checks
+        }
+        (Mode::Ci, _) => checks::ci_checks(),
+        _ => checks::local_checks(),
     };
-    let report = Report::new(mode, checks::run_all(&checks, &ctx)).with_origin(&origin(&ctx));
+    let mut report = Report::new(mode, checks::run_all(&checks, &ctx)).with_origin(&origin(&ctx));
+    if let Some(set) = set {
+        report = report.with_incident(set);
+    }
     let report = suppress_findings(report, &common, Some(&ctx), mode)?;
     emit(&report, &common, ctx.env.contains_key("NO_COLOR"))?;
     let default = match mode {
-        Mode::Scan => FailOn::None,
+        Mode::Scan | Mode::Incident => FailOn::None,
         Mode::Ci => FailOn::High,
     };
     Ok(exit_code(
@@ -252,11 +289,14 @@ fn text_options(common: &CommonArgs, color: bool) -> report::TextOptions {
     }
 }
 
-/// 1 when a finding reaches `fail_on`, or, with `--strict`, when something
-/// could not be analysed (`read_errors::NOT_ANALYSED_RULES`); 0 otherwise.
+/// 1 when a finding reaches `fail_on`, when `heldkeys incident` found an
+/// indicator of compromise, or, with `--strict`, when something could not
+/// be analysed (`read_errors::NOT_ANALYSED_RULES`); 0 otherwise.
 fn exit_code(fail_on: FailOn, strict: bool, report: &Report) -> ExitCode {
     let unreadable = strict && report.findings.iter().any(read_errors::is_not_analysed);
-    if fail_on.any_triggered(&report.findings) || unreadable {
+    let compromised =
+        report.incident.is_some() && report.findings.iter().any(incident::is_indicator);
+    if fail_on.any_triggered(&report.findings) || unreadable || compromised {
         ExitCode::from(1)
     } else {
         ExitCode::SUCCESS
@@ -443,7 +483,7 @@ fn load_ignores(
         }
         ignores.extend(found);
     }
-    if mode == Mode::Scan {
+    if matches!(mode, Mode::Scan | Mode::Incident) {
         let user = ctx.config_dir().join(config::USER_FILE);
         if let Some(found) = config::load(&user, &ctx.display_path(&user), None)? {
             ignores.extend(found);
@@ -467,9 +507,10 @@ fn write_file(path: &std::path::Path, contents: &str) -> Result<(), String> {
 
 /// `heldkeys checks`: a plain list, or JSON with `--format json`.
 fn list_checks(common: &CommonArgs) -> Result<ExitCode, String> {
-    let groups: [(&str, Vec<Box<dyn Check>>); 2] = [
+    let groups: [(&str, Vec<Box<dyn Check>>); 3] = [
         ("scan", checks::local_checks()),
         ("ci", checks::ci_checks()),
+        ("incident", checks::incident_checks()),
     ];
     let out = match common.format {
         FormatArg::Json => {

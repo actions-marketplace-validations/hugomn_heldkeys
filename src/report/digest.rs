@@ -130,7 +130,7 @@ pub fn digest(report: &Report) -> Digest<'_> {
     let mut notes: Vec<&Finding> = report
         .findings
         .iter()
-        .filter(|f| !f.is_credential())
+        .filter(|f| f.severity == Severity::Info)
         .collect();
     notes.sort_by_key(|f| !crate::checks::read_errors::is_not_analysed(f));
     Digest {

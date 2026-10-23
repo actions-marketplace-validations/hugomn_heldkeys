@@ -26,6 +26,7 @@ heldkeys lists them for your terminal, the agent's sandbox or the CI job, withou
 - **Credentials on your machine an agent inherits:** environment variables, cloud CLI logins (AWS, gcloud, Azure, kubeconfig), AI tool logins (Codex, Claude Code, Gemini CLI, Copilot, Hugging Face), developer platform CLI logins (Vault, Terraform, Vercel, Netlify, Fly.io, Supabase, Wrangler, Stripe, Doppler, Railway, Kaggle), package and git tokens, `.env` files and their editor history copies, SSH keys, and tokens pasted into MCP server configs.
 - **AI agent risks in GitHub Actions:** agent steps on triggers anyone can fire, agents working in a fork's checkout, write tokens, extra secrets, unpinned agent actions and unrestricted shell, followed through local reusable workflows.
 - **What a sandbox or CI job really exposes:** the Docker socket, a Kubernetes service account token, the cloud metadata endpoint, OIDC, and the job's own tokens, checked from inside.
+- **Whether a known supply-chain compromise ran here, and what to rotate:** `heldkeys incident black-october` checks the indicators of the October 2026 LiteLLM and OVHcloud CLI compromises, unpatched PHP and Node.js, and the Railway, Zeabur and OpenCode breach notices, in front of the inventory.
 
 ```sh
 brew install hugomn/tap/heldkeys
@@ -47,6 +48,7 @@ A single self-contained binary for Linux and macOS: read-only, no telemetry, don
 > - Each Docker socket it finds: it connects and closes again, sending nothing.
 > - `169.254.169.254:80`: one TCP connect with a 300 ms timeout and no payload, to see whether a cloud metadata service is reachable. `HELDKEYS_NO_NET=1` turns it off.
 > - `git ls-files`, only with `ci --repo-secrets`, with a cleared environment and hooks disabled.
+> - `docker image ls --digests`, `php --version`, `node --version` and `lsof` on one lock file, only with `incident`, each with a cleared environment but `PATH` (plus `HOME` and the Docker client variables for `docker`) and a 10 second timeout. Never `python`: its startup would run the LiteLLM loader.
 > - `docker` or `kubectl`, only with `scan --docker <container>` or `scan --kube <pod>`, to copy the binary to `/tmp` in that target and run it there. The copy deletes its own file as soon as it starts, and heldkeys runs `rm -f` on it afterwards in case it never started; [docs/sandboxes.md](docs/sandboxes.md#what-happens-to-the-copy) lists the cases where it can still be left behind.
 >
 > Of an SSH private key file it reads only the first 256 bytes, enough for the header and the cipher name, and keeps nothing from them.
@@ -163,6 +165,7 @@ heldkeys --details                     # every finding, grouped by place and fil
 heldkeys --quiet                       # only the summary line
 heldkeys --no-ignore                   # also show what .heldkeys.toml and --baseline leave out
 heldkeys checks                        # every check and rule, and what each one reads
+heldkeys incident black-october        # indicators of the October 2026 compromises, then what to rotate
 ```
 
 As a gate in a script, `--fail-on` sets the exit code and `--quiet` keeps the output to the verdict:
@@ -251,7 +254,7 @@ jobs:
           sarif: true
 ```
 
-`@v0` is the moving major tag, available from v0.1.1. For anything that matters, pin the action to a full commit SHA with the version in a comment (`hugomn/heldkeys@<full-commit-sha> # v0.2.3`). The action installs the heldkeys binary of its own release by default, so pinning the action pins the binary too. The step fails on a High finding by default; `fail-on: none` reports without failing. All inputs and outputs, and how to run it inside the agent's own job, are in [docs/github-action.md](docs/github-action.md). Without the action, in any CI:
+`@v0` is the moving major tag, available from v0.1.1. For anything that matters, pin the action to a full commit SHA with the version in a comment (`hugomn/heldkeys@<full-commit-sha> # v0.3.0`). The action installs the heldkeys binary of its own release by default, so pinning the action pins the binary too. The step fails on a High finding by default; `fail-on: none` reports without failing. All inputs and outputs, and how to run it inside the agent's own job, are in [docs/github-action.md](docs/github-action.md). Without the action, in any CI:
 
 ```sh
 heldkeys ci --format markdown --fail-on none >> "$GITHUB_STEP_SUMMARY"
@@ -359,6 +362,79 @@ Only Linux targets are supported. Pass `--binary` when the heldkeys you run is n
 > Run `heldkeys --format json` and tell me which credentials you can reach, starting with the long-lived ones that can write.
 
 The [agent skill](skill/heldkeys/SKILL.md) teaches Claude Code, Codex and Cursor to do this on request, without ever echoing a value.
+
+## Incident response
+
+When a supply-chain compromise hits a tool on your machine, every scanner answers the first question: did I get the bad build. heldkeys answers the one after it: what did it take, and what do I rotate first. `heldkeys incident <set>` runs the indicator checks of a named wave of disclosures in front of the normal inventory, and leads with the verdict. The first set is `black-october`, the disclosures of 19 to 22 October 2026:
+
+- **LiteLLM 1.107.0** (PyPI, and the `v1.107.0`, `latest`, `main-latest` and `main-stable` images, 21 October): the installed package and its stealer files in every site-packages directory heldkeys knows about, hashed against the published samples; the marker and lock files in `/tmp`; `PRIVCOLLECT_ACTIVE` in the environment; the loader's detached Python daemon; local Docker images by digest; and project files that pin 1.107.0. Python is never run, because running it is what starts the loader.
+- **OVHcloud CLI 0.11.0 to 0.15.0** (release binaries replaced on 19 October between 12:47 and 14:21 UTC): the `ovhcloud` binary hashed against OVHcloud's five MD5s, its install time and version, and the `envchecker-` directories the stealer leaves in the temp directory. The binary is never run.
+- **PHP** below 8.5.12, 8.4.27, 8.3.36 and 8.2.35 (php2shell, CISA alert of 21 October) and **Node.js** below 26.12.1, 24.22.1 and 22.23.4 (the October security release), plus end-of-life lines: what is on `PATH`, what version managers keep, and what Dockerfiles, compose files, `.nvmrc`, `.node-version`, `.php-version` and `.tool-versions` pin. Reported, never counted as credentials.
+- **Railway, Zeabur and OpenCode Console**, which disclosed that secrets stored with them may have been read: a login or project file for one of them means there are secrets to rotate on that side too.
+
+Here it is on a test home built from the fixtures in this repository (a virtualenv that installed 1.107.0, the markers in `/tmp`, a Railway login, and a project pinning the release and PHP 8.3.35):
+
+```text
+$ heldkeys incident black-october
+heldkeys incident black-october: 7 compromise indicators found, 1 credential reachable from ~/code/app
+Indicators as published up to 2026-10-23; finding none proves nothing, and the list is no substitute
+for the advisories below.
+
+Compromise indicators
+  HIGH    litellm 1.107.0 installed             ~/.venv/lib/python3.12/site-packages
+          litellm-1.107.0.dist-info present
+  HIGH    Compiled LiteLLM stealer in…          ~/.venv/lib/pyth…/__pycache__/cook.cpython-312.pyc
+          bytecode cache of the stealer; the source may have been deleted
+  HIGH    LiteLLM stealer file in…              ~/.venv/lib/python3.12/site-packages/cook.pth
+          SHA-256 matches the published sample
+  HIGH    LiteLLM stealer file in…              ~/.venv/lib/python3.12/site-packages/cook.py
+          same name and place as the published sample, different SHA-256
+  HIGH    LiteLLM stealer file in…              ~/.venv/lib/pyth…12/site-packages/sitecustomize.py
+          same name and place as the published sample, different SHA-256
+  HIGH    LiteLLM stealer upload marker         ~/tmp/.pc_once_72129118c59f5636c0bb
+          written after the stealer uploaded what it collected
+  HIGH    LiteLLM loader lock file              ~/tmp/remote_code_loader.lock
+          held by the loader's daemon while it runs
+  MEDIUM  Project pins litellm 1.107.0          ./api/requirements.txt:2
+          exact pin ==1.107.0
+
+Rotate these first
+  HIGH    Railway CLI login token  ~/.railway/config.json
+
+Where they are               high  medium     low
+  Developer platform CLIs       1       -       -
+
+Unpatched runtimes (not credentials)
+  LOW     PHP 8.3.35 without the php2shell fix  ./Dockerfile:1
+          CVE-2026-109618 and CVE-2026-109619, unauthenticated remote code execution in PHP serving
+          web requests
+
+Platforms that disclosed a breach
+  MEDIUM  Secrets stored in Railway need…       ~/.railway/config.json
+          an unauthorised party may have read stored environment variables, some decrypted
+
+Next steps
+  1. Treat this host as compromised: take it off the network, stop the malicious process and remove
+     the files the advisory names, then rotate every credential above, cloud and source-control
+     tokens first.
+  2. Log out of developer platform CLIs agents do not need, or use scoped, expiring tokens (1
+     credential).
+
+Advisories
+  LiteLLM: release v1.107.0 compromised (21 Oct 2026):
+    https://docs.litellm.ai/blog/security-incident-oct-21-2026
+  SafeDep: analysis and file hashes of the LiteLLM stealer:
+    https://safedep.io/litellm-pypi-compromise-credential-stealer-backdoor/
+  (seven more)
+
+Run `heldkeys incident black-october --details` for all 11 findings, or `--format json`.
+7 compromise indicators found.
+Treat this host as compromised and rotate everything it could reach: 1 credential, 1 long-lived with write access.
+```
+
+A High finding of an indicator check is a confirmed indicator: the verdict reads "treat this host as compromised", the inventory becomes the rotation list, and the exit code is 1. Medium and Low findings of those checks are signs of exposure to check. Nothing found is reported as exactly that: the list covers what the advisories had published on the date printed under the header, and every format links them. Ignore rules and baselines apply as everywhere else, `--format json` adds an `incident` object with the verdict, and `--details` lists everything by place. The rules are listed under [What it checks](#what-it-checks).
+
+Three of the checks run a program, each with a cleared environment but `PATH` and a 10 second timeout: `docker image ls` for image digests, `php --version` and `node --version`, and `lsof` on the loader's lock file when that file exists.
 
 ## What it checks
 
@@ -475,6 +551,31 @@ On a self-hosted runner every `ci-runtime` finding that is not Info is rated one
 
 </details>
 
+<details>
+<summary><b>Incident rules</b> (15), for <code>heldkeys incident black-october</code></summary>
+
+| Rule | Check | What it detects | Default severity |
+|---|---|---|---|
+| [HK-LITELLM-001](docs/rules/HK-LITELLM-001.md) | `ioc-litellm` | litellm 1.107.0 installed in a Python environment | High |
+| [HK-LITELLM-002](docs/rules/HK-LITELLM-002.md) | `ioc-litellm` | LiteLLM stealer or loader file in a site-packages directory | High |
+| [HK-LITELLM-003](docs/rules/HK-LITELLM-003.md) | `ioc-litellm` | Marker or lock file of the LiteLLM stealer in the temp directory | High |
+| [HK-LITELLM-004](docs/rules/HK-LITELLM-004.md) | `ioc-litellm` | PRIVCOLLECT_ACTIVE set in the environment by the LiteLLM stealer | High |
+| [HK-LITELLM-005](docs/rules/HK-LITELLM-005.md) | `ioc-litellm` | Detached Python process of the LiteLLM remote code loader | High |
+| [HK-LITELLM-006](docs/rules/HK-LITELLM-006.md) | `ioc-litellm` | LiteLLM Docker image with a compromised digest or the v1.107.0 tag | High, or Medium for the tag alone |
+| [HK-LITELLM-007](docs/rules/HK-LITELLM-007.md) | `ioc-litellm` | Project requirements or lockfile pin litellm 1.107.0 | Medium |
+| [HK-OVH-001](docs/rules/HK-OVH-001.md) | `ioc-ovhcloud` | ovhcloud CLI binary matching a published malicious build (MD5) | High |
+| [HK-OVH-002](docs/rules/HK-OVH-002.md) | `ioc-ovhcloud` | ovhcloud CLI from the tampered release range, or installed in the tampering window | Medium, Low or Info |
+| [HK-OVH-003](docs/rules/HK-OVH-003.md) | `ioc-ovhcloud` | envchecker working directory left by the OVHcloud CLI stealer | High |
+| [HK-RT-001](docs/rules/HK-RT-001.md) | `runtime-versions` | PHP without the php2shell fixes (8.5.12, 8.4.27, 8.3.36, 8.2.35), or end of life | Low, or Medium for end of life |
+| [HK-RT-002](docs/rules/HK-RT-002.md) | `runtime-versions` | Node.js without the October 2026 security release (26.12.1, 24.22.1, 22.23.4), or end of life | Low |
+| [HK-BREACH-001](docs/rules/HK-BREACH-001.md) | `platform-breaches` | Railway login or project: environment variables stored there may have been read (21 Oct 2026) | Medium |
+| [HK-BREACH-002](docs/rules/HK-BREACH-002.md) | `platform-breaches` | Zeabur login or project: the platform database was read (14 to 15 Oct 2026) | Medium |
+| [HK-BREACH-003](docs/rules/HK-BREACH-003.md) | `platform-breaches` | OpenCode data on disk: provider keys linked in OpenCode Console may be exposed (17 Oct 2026) | Low |
+
+The indicator checks (`ioc-litellm`, `ioc-ovhcloud`) decide the verdict: a High finding of theirs is a confirmed indicator and makes `heldkeys incident` exit 1; Medium and Low ones are signs of exposure to check. `runtime-versions` and `platform-breaches` findings are not credentials and never count as such; they are listed so the patch list, the rotation list and the notices from platforms come out of one run. Every incident report carries the date its indicator list was last checked against the advisories, and links them.
+
+</details>
+
 ## Output formats
 
 | Format | Use it for |
@@ -486,9 +587,9 @@ On a self-hosted runner every `ci-runtime` finding that is not Info is rated one
 
 Text taken from the files it scans (workflow job names, `uses:` values, config keys, what a container sends back) is printed as inert text in every format: terminal escapes, bidi controls and line breaks become `?`, nothing can start a GitHub Actions workflow command, and Markdown links, images, HTML tags and @mentions do not render; URLs from scanned files are shown as code, so the only links in a report are its own rule pages. Secrets that end up inside such text are masked before rendering: the password in a URL (percent-encoded separators included), `Authorization` and `Bearer` values, tokens in URL query and fragment parameters (`?api_key=`, `#access_token=`), the values of `--password`, `--token`, `--api-key` and `--secret` style flags, and known tokens.
 
-`--output <file>` writes the report to a file (never with colour) and still prints the summary line to stdout. The summary line reads "N credentials reachable, M long-lived with write access" for `scan`, and "N AI agent workflow risks, M credentials reachable in this job" for `ci`.
+`--output <file>` writes the report to a file (never with colour) and still prints the summary line to stdout. The summary line reads "N credentials reachable, M long-lived with write access" for `scan`, "N AI agent workflow risks, M credentials reachable in this job" for `ci`, and "N compromise indicators found. Treat this host as compromised and rotate everything it could reach: ..." (or "No known compromise indicators found. ...") for `incident`.
 
-**Exit codes.** `0`: nothing reached the `--fail-on` threshold. `1`: something did, or, with `--strict`, something could not be analysed (a file could not be read or parsed, HK-READ-001, or a workflow could not be analysed, HK-WF-007). `2`: a usage or runtime error.
+**Exit codes.** `0`: nothing reached the `--fail-on` threshold. `1`: something did, or, with `--strict`, something could not be analysed (a file could not be read or parsed, HK-READ-001, or a workflow could not be analysed, HK-WF-007), or `heldkeys incident` found a confirmed indicator of compromise. `2`: a usage or runtime error.
 
 **`--fail-on`** takes `none`, `high`, `medium`, `low` or `long-lived-write`. The default is `none` for `scan`, so a laptop scan never fails a script by surprise, and `high` for `ci` and `preflight`. `long-lived-write` is the useful middle ground for sandboxes: it fails only on credentials that keep working after the session and can change things.
 

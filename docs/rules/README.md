@@ -109,6 +109,28 @@ Every finding heldkeys reports carries a stable rule id. An id never changes mea
 
 On a self-hosted runner every `ci-runtime` finding that is not Info is rated one level higher, because files, caches and processes can outlive the job. `HK-WF-001` is rated one level lower when something restricts who can start the agent (an `if:` that only lets named actors, OWNER, MEMBER and COLLABORATOR, or same-repository pull requests through, on the job or on a job it needs, or claude-code-action's own write-access check; a negative check such as `github.actor != 'bot'` does not count). The `HK-WF` rules follow local reusable workflows into the workflow they call, with the caller's triggers, permissions and secrets. `HK-REPO-001` only runs with `heldkeys ci --repo-secrets`. The `git-config` check also runs in `heldkeys ci`, on the repository's `.git/config` only; inside GitHub Actions it leaves the checkout's `Authorization` header to `HK-CI-005`. `HK-READ-001` is reported in every mode (`scan`, `preflight` and `ci`). `--strict` makes `HK-READ-001` and `HK-WF-007` fail the run, the rules that mean something could not be analysed.
 
+## Incident rules (`heldkeys incident black-october`)
+
+| Rule | Check | What it detects | Default severity |
+|---|---|---|---|
+| [HK-LITELLM-001](HK-LITELLM-001.md) | `ioc-litellm` | litellm 1.107.0 installed in a Python environment | High |
+| [HK-LITELLM-002](HK-LITELLM-002.md) | `ioc-litellm` | LiteLLM stealer or loader file in a site-packages directory | High |
+| [HK-LITELLM-003](HK-LITELLM-003.md) | `ioc-litellm` | Marker or lock file of the LiteLLM stealer in the temp directory | High |
+| [HK-LITELLM-004](HK-LITELLM-004.md) | `ioc-litellm` | PRIVCOLLECT_ACTIVE set in the environment by the LiteLLM stealer | High |
+| [HK-LITELLM-005](HK-LITELLM-005.md) | `ioc-litellm` | Detached Python process of the LiteLLM remote code loader | High |
+| [HK-LITELLM-006](HK-LITELLM-006.md) | `ioc-litellm` | LiteLLM Docker image with a compromised digest or the v1.107.0 tag | High, or Medium for the tag alone |
+| [HK-LITELLM-007](HK-LITELLM-007.md) | `ioc-litellm` | Project requirements or lockfile pin litellm 1.107.0 | Medium |
+| [HK-OVH-001](HK-OVH-001.md) | `ioc-ovhcloud` | ovhcloud CLI binary matching a published malicious build (MD5) | High |
+| [HK-OVH-002](HK-OVH-002.md) | `ioc-ovhcloud` | ovhcloud CLI from the tampered release range, or installed in the tampering window | Medium, Low or Info |
+| [HK-OVH-003](HK-OVH-003.md) | `ioc-ovhcloud` | envchecker working directory left by the OVHcloud CLI stealer | High |
+| [HK-RT-001](HK-RT-001.md) | `runtime-versions` | PHP without the php2shell fixes (8.5.12, 8.4.27, 8.3.36, 8.2.35), or end of life | Low, or Medium for end of life |
+| [HK-RT-002](HK-RT-002.md) | `runtime-versions` | Node.js without the October 2026 security release (26.12.1, 24.22.1, 22.23.4), or end of life | Low |
+| [HK-BREACH-001](HK-BREACH-001.md) | `platform-breaches` | Railway login or project: environment variables stored there may have been read (21 Oct 2026) | Medium |
+| [HK-BREACH-002](HK-BREACH-002.md) | `platform-breaches` | Zeabur login or project: the platform database was read (14 to 15 Oct 2026) | Medium |
+| [HK-BREACH-003](HK-BREACH-003.md) | `platform-breaches` | OpenCode data on disk: provider keys linked in OpenCode Console may be exposed (17 Oct 2026) | Low |
+
+The indicator checks (`ioc-litellm`, `ioc-ovhcloud`) decide the verdict: a High finding of theirs is a confirmed indicator and makes `heldkeys incident` exit 1; Medium and Low ones are signs of exposure to check. `runtime-versions` and `platform-breaches` findings are not credentials and never count as such; they are listed so the patch list, the rotation list and the notices from platforms come out of one run. Every incident report carries the date its indicator list was last checked against the advisories, and links them.
+
 ## Page template
 
 New rule pages follow the same shape, so they are easy to scan:

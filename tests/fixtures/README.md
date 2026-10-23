@@ -93,3 +93,7 @@ committed with `git add -f`. Do the same when adding new ones.
   `path = "*fixtures*"` rule must not hide; `escalated/` is a workflow
   whose agent became High after a baseline (`base.json`) recorded it as
   Medium. Tokens are numbered 11xx.
+
+## incident
+
+`home` and `project` for `heldkeys incident black-october`: a virtualenv that looks like it installed litellm 1.107.0 (the real `cook.pth` content, stand-ins with other content for `cook.py` and `sitecustomize.py`), the stealer's marker files under `tmp` (the fixture is also `--root`), platform logins and project files for Railway, Zeabur and OpenCode, a stand-in `ovhcloud` binary at an affected Caskroom version, an nvm install of Node 22.23.3, and a project pinning litellm 1.107.0, PHP 8.3.35 and Node 20. Nothing in it is malicious: the indicator checks match names, paths and hashes, and the only hash that matches is the one of the line `import cook`.

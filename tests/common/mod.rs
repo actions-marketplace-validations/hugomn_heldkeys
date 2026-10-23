@@ -99,6 +99,8 @@ pub const FIXTURE_SECRETS: &[&str] = &[
     "ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000018",
     "ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000019",
     "ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKE000020",
+    "FAKErailwayTOKEN0301",
+    "FAKEzeaburTOKEN0302",
 ];
 
 /// Fake secrets passed through the environment.

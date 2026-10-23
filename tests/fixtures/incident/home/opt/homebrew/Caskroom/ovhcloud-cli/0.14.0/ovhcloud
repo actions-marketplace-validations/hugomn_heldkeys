@@ -1,0 +1,2 @@
+#!/bin/sh
+# Test stand-in for the ovhcloud binary: an affected version number in the path, not a malicious build.

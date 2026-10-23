@@ -111,6 +111,8 @@ pub struct Rule {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Category {
+    /// `heldkeys incident`: indicators that a malicious build ran here.
+    Indicators,
     Environment,
     CloudCli,
     Git,
@@ -124,6 +126,10 @@ pub enum Category {
     Workflow,
     ProjectEnv,
     RepoFiles,
+    /// `heldkeys incident`: runtimes without a security fix (not credentials).
+    Runtimes,
+    /// `heldkeys incident`: platforms that disclosed a breach of stored secrets.
+    Breaches,
     NotAnalysed,
     Other,
 }
@@ -146,6 +152,9 @@ impl Category {
             "dotenv" => Category::ProjectEnv,
             "repo-secrets" => Category::RepoFiles,
             "read-errors" => Category::NotAnalysed,
+            "ioc-litellm" | "ioc-ovhcloud" => Category::Indicators,
+            "runtime-versions" => Category::Runtimes,
+            "platform-breaches" => Category::Breaches,
             _ => Category::Other,
         }
     }
@@ -167,8 +176,20 @@ impl Category {
             Category::ProjectEnv => "Project .env files",
             Category::RepoFiles => "Tracked files",
             Category::NotAnalysed => "Could not analyse",
+            Category::Indicators => "Compromise indicators",
+            Category::Runtimes => "Unpatched runtimes (not credentials)",
+            Category::Breaches => "Platforms that disclosed a breach",
             Category::Other => "Other",
         }
+    }
+
+    /// Categories only `heldkeys incident` produces. Their findings are not
+    /// credentials: the summary and the digest keep them apart.
+    pub fn is_incident(self) -> bool {
+        matches!(
+            self,
+            Category::Indicators | Category::Runtimes | Category::Breaches
+        )
     }
 
     /// Files in the working directory, which a repository controls, rather
@@ -286,9 +307,10 @@ impl Finding {
         self
     }
 
-    /// True for findings that are actual credentials (everything but `Info`).
+    /// True for findings that are actual credentials: everything but `Info`,
+    /// and nothing from the incident categories.
     pub fn is_credential(&self) -> bool {
-        self.severity != Severity::Info
+        self.severity != Severity::Info && !self.category.is_incident()
     }
 
     /// Long-lived with write access: the worst combination, called out in the summary.
@@ -428,5 +450,8 @@ mod tests {
         assert_eq!(Category::of_check("aws"), Category::CloudCli);
         assert!(Category::ProjectEnv.is_project());
         assert!(Category::Environment < Category::ProjectEnv);
+        assert!(Category::Indicators < Category::Environment);
+        assert!(Category::of_check("ioc-litellm").is_incident());
+        assert!(!Category::of_check("env").is_incident());
     }
 }
